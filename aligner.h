@@ -3,12 +3,20 @@
 #include <QVector>
 #include <QString>
 #include <QHash>
+#include "alignment.h"
 
 struct AudioEntry {
-	int index;
-	int startMs;
-	int endMs;
-	QString text;
+	QString text;	// слово
+	int startMs;	// врем€ начала слова в миллисекундах
+	int endMs;		// врем€ конца слова в миллисекундах
+
+	//	int index;		// индекс в json
+};
+
+struct SourceWord {
+	QString text;           // слово в нижнем регистре (дл€ сравнени€)
+	int sentenceIndex;      // индекс в массиве предложений
+	int wordIndex;          // позици€ в предложении
 };
 
 // ƒанные дл€ одной €чейки
@@ -32,12 +40,7 @@ struct AlignmentPair {
 	QVector<int> sourceIndices;
 };
 
-// aligner.h
-struct SourceWord {
-	QString text;           // слово в нижнем регистре (дл€ сравнени€)
-	int sentenceIndex;      // индекс в enCells
-	int wordIndex;          // позици€ в предложении
-};
+
 
 struct MatchResult {
 	double matches;			// количество совпавших слов
@@ -53,8 +56,17 @@ struct MatchResult {
 
 QVector<int> countSentences(const QString& text, int startIndex);
 
-class Aligner
+class Aligner : public IAlignmentEngine
 {
+public:
+	// –еализаци€ IAlignmentEngine
+	int getSourceWordsCount() const override;
+	int getAudioWordsCount() const override;
+	const QString& getSourceWord(int index) const override;
+	const QString& getAudioWord(int index) const override;
+
+	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) override;
+	void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) override;
 public:
 	Aligner();
 
@@ -154,7 +166,7 @@ private:
 	void flushPendingAudio(QStringList& pendingAudio, int& pendingStartMs, int& pendingEndMs, int insertPosition);
 
 	// ѕрив€зка группы аудио слов к английским предложени€м
-	void assignAudioGroup(int enStart, int audioStart, int windowSize);
+	void assignAudioGroup(int enStart, int audioStart, int nWords);
 
 	void syncCellsAfterAlignment();  // —инхронизаци€ после выравнивани€
 };

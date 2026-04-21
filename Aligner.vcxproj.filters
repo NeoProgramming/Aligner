@@ -51,5 +51,8 @@
     <ClInclude Include="audio_parser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="alignment.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

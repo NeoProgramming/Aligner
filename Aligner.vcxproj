@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aligner.h" />
+    <ClInclude Include="alignment.h" />
     <ClInclude Include="audio_parser.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -8,6 +8,92 @@
 #include <QRegularExpression>
 #include <QDateTime>
 
+
+int Aligner::getSourceWordsCount() const
+{
+	return m_enWordsCache.size();
+}
+
+int Aligner::getAudioWordsCount() const
+{
+	return audioEntries.size();
+}
+
+const QString& Aligner::getSourceWord(int index) const
+{
+	static const QString EMPTY;
+	if (index < 0 || index >= m_enWordsCache.size()) {
+		qWarning() << "getSourceWord: invalid index" << index << "size:" << m_enWordsCache.size();
+		assert(false);
+		return EMPTY;
+	}
+	return m_enWordsCache[index].text;
+}
+
+const QString& Aligner::getAudioWord(int index) const
+{
+	static const QString EMPTY;
+	if (index < 0 || index >= audioEntries.size()) {
+		qWarning() << "getAudioWord: invalid index" << index << "size:" << audioEntries.size();
+		assert(false);
+		return EMPTY;
+	}
+	return audioEntries[index].text;
+}
+
+void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount)
+{
+	// Собираем аудио слова по индексам предложений
+	QMap<int, QStringList> audioBySentence;
+	QMap<int, int> startMsBySentence;
+	QMap<int, int> endMsBySentence;
+
+	for (int i = 0; i < sourceCount; ++i) {
+		int sentIdx = m_enWordsCache[sourceStart + i].sentenceIndex;
+		int audioPos = audioStart + i;
+
+		audioBySentence[sentIdx].append(audioEntries[audioPos].text);
+
+		if (!startMsBySentence.contains(sentIdx)) {
+			startMsBySentence[sentIdx] = audioEntries[audioPos].startMs;
+		}
+		endMsBySentence[sentIdx] = audioEntries[audioPos].endMs;
+	}
+
+	// Записываем в audioCells
+	for (auto it = audioBySentence.begin(); it != audioBySentence.end(); ++it) {
+		int sentIdx = it.key();
+
+		// Расширяем audioCells если нужно
+		while (audioCells.size() <= sentIdx) {
+			audioCells.append(CellData());
+		}
+
+		// ОБЪЕДИНЯЕМ с существующим текстом, а не заменяем!
+		if (!audioCells[sentIdx].text.isEmpty()) {
+			audioCells[sentIdx].text += " ";
+		}
+		audioCells[sentIdx].text += it.value().join(" ");
+		audioCells[sentIdx].isExcluded = false;
+
+		// Обновляем время начала (берём минимальное)
+		if (audioCells[sentIdx].audioStartMs == -1 ||
+			startMsBySentence[sentIdx] < audioCells[sentIdx].audioStartMs) {
+			audioCells[sentIdx].audioStartMs = startMsBySentence[sentIdx];
+		}
+		// Обновляем время окончания (берём максимальное)
+		if (endMsBySentence[sentIdx] > audioCells[sentIdx].audioEndMs) {
+			audioCells[sentIdx].audioEndMs = endMsBySentence[sentIdx];
+		}
+	}
+}
+
+void Aligner::flushPendingGroup(int sourceIndex, int audioStart, int audioCount)
+{
+
+}
+
+
 Aligner::Aligner()
 	: modified(false)
 {
@@ -1113,14 +1199,14 @@ void Aligner::flushPendingAudio(QStringList& pendingAudio, int& pendingStartMs, 
 	qDebug() << "[PENDING] " << insert.audioCell.text;
 }
 
-void Aligner::assignAudioGroup(int enStart, int audioStart, int windowSize)
+void Aligner::assignAudioGroup(int enStart, int audioStart, int nWords)
 {
 	// Собираем аудио слова по индексам предложений
 	QMap<int, QStringList> audioBySentence;
 	QMap<int, int> startMsBySentence;
 	QMap<int, int> endMsBySentence;
 
-	for (int i = 0; i < windowSize; ++i) {
+	for (int i = 0; i < nWords; ++i) {
 		int sentIdx = m_enWordsCache[enStart + i].sentenceIndex;
 		int audioPos = audioStart + i;
 

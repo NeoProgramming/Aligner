@@ -41,7 +41,7 @@ QVector<AudioEntry> AudioParser::parseSrt(const QString& filename)
 		if (line.isEmpty()) continue;
 
 		bool ok;
-		entry.index = line.toInt(&ok);
+	//	entry.index = line.toInt(&ok);
 		if (!ok) continue;
 
 		QString timeLine = stream.readLine();
@@ -125,7 +125,7 @@ QVector<AudioEntry> AudioParser::parseJson(const QString& filename)
 			QJsonObject wordObj = wordVal.toObject();
 
 			AudioEntry entry;
-			entry.index = entries.size() + 1;
+		//	entry.index = entries.size() + 1;
 
 			// Извлекаем слово
 			entry.text = wordObj["word"].toString().trimmed();
