@@ -44,3 +44,6 @@ Outliner/NeoStudio
 neoide_dm10.exe
 hello0.exe
 /samples/h1/hello1.exe
+*.align
+*.json
+*.txt

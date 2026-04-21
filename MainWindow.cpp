@@ -121,7 +121,7 @@ void MainWindow::createMenuBar()
 	editMenu->addAction("Merge all with Next", this, &MainWindow::onMergeAllWithNext);
 
 	QMenu* toolsMenu = menuBar()->addMenu("&Tools");
-	toolsMenu->addAction("Auto-align", this, &MainWindow::onAutoAlign);
+	toolsMenu->addAction("Target align", this, &MainWindow::onTargetAlign);
 	toolsMenu->addAction("Audio align", this, &MainWindow::onAudioAlign);
 	toolsMenu->addAction("Recalc", this, &MainWindow::onRecalc);
 	toolsMenu->addAction("Hunalign Alignment", this, &MainWindow::onHunalignAlign);
@@ -132,11 +132,12 @@ void MainWindow::createMenuBar()
 void MainWindow::createToolBar()
 {
 	QToolBar* toolbar = addToolBar("Main");
-	toolbar->addAction("Load EN", this, &MainWindow::onLoadSource);
-	toolbar->addAction("Load RU", this, &MainWindow::onLoadTarget);
+	toolbar->addAction("Load Project", this, &MainWindow::onLoadProject);
+	toolbar->addAction("Load Source", this, &MainWindow::onLoadSource);
+	toolbar->addAction("Load Target", this, &MainWindow::onLoadTarget);
 	toolbar->addAction("Load Audio Text", this, &MainWindow::onLoadAudioText);
 	toolbar->addSeparator();
-	toolbar->addAction("Auto-align", this, &MainWindow::onAutoAlign);
+	toolbar->addAction("Target align", this, &MainWindow::onTargetAlign);
 	toolbar->addAction("Audio align", this, &MainWindow::onAudioAlign);
 	toolbar->addAction("Hunalign", this, &MainWindow::onHunalignAlign);
 	toolbar->addSeparator();
@@ -252,26 +253,34 @@ void MainWindow::onLoadTarget()
 	if (filename.isEmpty()) return;
 
 	m_aligner.loadTargetText(filename);
-	statusBar()->showMessage("Target text loaded. Use Auto-align to match with Source", 3000);
+	statusBar()->showMessage("Target text loaded. Use Target align to match with Source", 3000);
 }
 
-void MainWindow::onLoadAudioText()
+bool MainWindow::loadAudioTextFile(const QString& filename)
 {
-	QString filename = QFileDialog::getOpenFileName(this, "Load Audio Text",
-		QString(), "SRT/JSON files (*.srt *.json);;All files (*.*)");
-	if (filename.isEmpty()) return;
+	if (filename.isEmpty()) return false;
 
 	QVector<AudioEntry> entries = AudioParser::parseFile(filename);
 
 	if (entries.isEmpty()) {
 		QMessageBox::warning(this, "Error", "No valid entries found in file");
-		return;
+		return false;
 	}
 
 	m_aligner.loadAudioEntries(entries, filename);
 	statusBar()->showMessage(QString("Loaded %1 audio entries from %2")
 		.arg(entries.size())
 		.arg(QFileInfo(filename).suffix().toUpper()), 3000);
+
+	return true;
+}
+
+void MainWindow::onLoadAudioText()
+{
+	QString filename = QFileDialog::getOpenFileName(this, "Load Audio Text",
+		QString(), "SRT/JSON files (*.srt *.json);;All files (*.*)");
+
+	loadAudioTextFile(filename);
 }
 
 void MainWindow::onLoadAudioFile()
@@ -433,7 +442,7 @@ void MainWindow::onRecalc()
 	syncTableFromAligner();
 }
 
-void MainWindow::onAutoAlign()
+void MainWindow::onTargetAlign()
 {
 	if (m_aligner.rowCount()==0) {
 		QMessageBox::warning(this, "Error", "Load Source text first");
@@ -448,7 +457,7 @@ void MainWindow::onAutoAlign()
 	m_aligner.autoAlignTarget();
 	syncTableFromAligner();
 	setModified(true);
-	statusBar()->showMessage("Auto-alignment completed", 3000);
+	statusBar()->showMessage("Target alignment completed", 3000);
 }
 
 void MainWindow::onAudioAlign()
@@ -460,6 +469,25 @@ void MainWindow::onAudioAlign()
 
 	if (m_aligner.currentAudioTextFile.isEmpty()) {
 		QMessageBox::warning(this, "Error", "Load Audio text first");
+		return;
+	}
+
+	// Если аудио текст ещё не загружен, но путь есть в проекте
+	if (m_aligner.audioEntries.isEmpty() && !m_aligner.currentAudioTextFile.isEmpty()) {
+		// Пробуем загрузить автоматически
+		if (loadAudioTextFile(m_aligner.currentAudioTextFile)) {
+			statusBar()->showMessage("Audio text auto-loaded from project path", 2000);
+		}
+		else {
+			QMessageBox::warning(this, "Error",
+				QString("Failed to load audio text file:\n%1").arg(m_aligner.currentAudioTextFile));
+			return;
+		}
+	}
+
+	// Проверяем, что теперь аудио текст загружен
+	if (m_aligner.audioEntries.isEmpty()) {
+		QMessageBox::warning(this, "Error", "Load audio text (SRT/JSON) first");
 		return;
 	}
 
@@ -776,3 +804,4 @@ void MainWindow::onNewProject()
 	setModified(false);
 	statusBar()->showMessage("New project created", 3000);
 }
+

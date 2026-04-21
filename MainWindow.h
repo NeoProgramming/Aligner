@@ -35,7 +35,7 @@ private slots:
 	void onMergeAllWithNext();
 
 	// Tools menu
-	void onAutoAlign();
+	void onTargetAlign();
 	void onAudioAlign();
 	void onRecalc();
 	void onSplitAudio();
@@ -54,6 +54,7 @@ private slots:
 	void onEditCell();  // новый слот для редактирования
 	void onHunalignAlign();
 private:
+	bool loadAudioTextFile(const QString& filename);
 	void setupUI();
 	void setupTableProperties();
 	void createMenuBar();

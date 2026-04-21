@@ -262,8 +262,12 @@ void Aligner::loadAudioFile(const QString& filename)
 
 void Aligner::autoAlignTarget()
 {
+	// разбить файл второго €зыка по предложени€м 
+	// (а в перспективе сопоставить его с текстовым файлом первого €зыка по словарю)
+
 	if (enCells.isEmpty() || currentRuFile.isEmpty()) return;
 
+	// загружаем текстовый файл второго €зыка
 	QFile file(currentRuFile);
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
 		qWarning() << "Cannot open Russian file:" << currentRuFile;
@@ -1234,8 +1238,16 @@ MatchResult Aligner::similarityRecursive(int enStart, int audioStart, int currDe
 		return { 0.0, 0, 0 };
 	}
 
+	// Ѕазовый случай: достигли максимальной глубины
+	if (currDepth <= minDepth) {
+		return { 0.0, 0, 0 };
+	}
+
+
 	const QString& enWord = m_enWordsCache[enStart].text;
 	const QString& audioWord = audioEntries[audioStart].text;
+
+	// debug
 	if (audioWord == "1")
 		enStart += 0;
 
@@ -1245,12 +1257,6 @@ MatchResult Aligner::similarityRecursive(int enStart, int audioStart, int currDe
 		MatchResult next = similarityRecursive(enStart + 1, audioStart + 1, currDepth - 1, minDepth);
 		// возвращаем результат
 		return { 1.0 + next.matches, 1 + next.enTotal, 1 + next.audioTotal };
-	}
-
-	// правильно ли € перенес сюда это???
-	// Ѕазовый случай: достигли максимальной глубины
-	if (currDepth <= minDepth) {
-		return { 0.0, 0, 0 };
 	}
 
 	// ¬ариант 2: пропускаем английское слово
@@ -1286,7 +1292,7 @@ MatchResult Aligner::similarityRecursive(int enStart, int audioStart, int currDe
 
 double Aligner::similarity(int enStart, int audioStart, int N, int& enUsed, int& audioUsed)
 {
-	int M = N * 2 / 3;
+	int M = N - 2;// *2 / 3;
 	MatchResult result = similarityRecursive(enStart, audioStart, N, M);
 
 	if (result.enTotal < M || result.audioTotal < M) {
@@ -1303,8 +1309,41 @@ double Aligner::similarity(int enStart, int audioStart, int N, int& enUsed, int&
 	return result.matches / m;  // нормализуем
 }
 
+// ”прощенна€ верси€ дл€ понимани€ концепции
+double Aligner::similaritySimple(int enStart, int audioStart, int N)
+{
+	int n = qMin(N, m_enWordsCache.size() - enStart);
+	int m = qMin(N, audioEntries.size() - audioStart);
+
+	// —оздаем таблицу
+	QVector<QVector<int>> dp(n + 1, QVector<int>(m + 1, 0));
+
+	// «аполн€ем таблицу
+	for (int i = 1; i <= n; i++) {
+		for (int j = 1; j <= m; j++) {
+			// ≈сли слова совпадают
+			if (m_enWordsCache[enStart + i - 1].text ==
+				audioEntries[audioStart + j - 1].text) {
+				dp[i][j] = dp[i - 1][j - 1] + 1;
+			}
+			// »наче берем максимум из пропуска слова в одном из массивов
+			else {
+				dp[i][j] = qMax(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+	}
+
+	// dp[n][m] содержит максимальное количество совпадений
+	int matches = dp[n][m];
+	int totalWords = qMax(n, m);
+
+	return totalWords > 0 ? (double)matches / totalWords : 0.0;
+}
+
 void Aligner::alignAudioToSource()
 {
+	// 
+
 	if (enCells.isEmpty() || audioEntries.isEmpty()) return;
 
 	rebuildSourceWordsCache();
@@ -1343,7 +1382,8 @@ void Aligner::alignAudioToSource()
 
 		for (int offset = 0; offset <= maxSearch; ++offset) {
 			
-			double score = similarity(enIdx, audioIdx + offset, currentWindow, enUsed, audioUsed);
+			double score = //similarity(enIdx, audioIdx + offset, currentWindow, enUsed, audioUsed);
+				similaritySimple(enIdx, audioIdx + offset, currentWindow); enUsed = audioUsed = currentWindow;
 
 			// отладка
 			qDebug() << QString::asprintf("#%03d: %.5f", offset, score) << debugAudioWords(audioIdx + offset, currentWindow);
