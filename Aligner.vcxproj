@@ -88,17 +88,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="MyAligner.cpp" />
+    <ClCompile Include="NeedlemanWunschAligner.cpp" />
+    <ClCompile Include="tools.cpp" />
     <QtRcc Include="MainWindow.qrc" />
     <QtMoc Include="MainWindow.h" />
+    <ClCompile Include="AdvancedAligner.cpp" />
     <ClCompile Include="aligner.cpp" />
     <ClCompile Include="audio_parser.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AdvancedAligner.h" />
     <ClInclude Include="aligner.h" />
     <ClInclude Include="alignment.h" />
     <ClInclude Include="audio_parser.h" />
+    <ClInclude Include="MyAligner.h" />
+    <ClInclude Include="NeedlemanWunschAligner.h" />
+    <ClInclude Include="tools.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
