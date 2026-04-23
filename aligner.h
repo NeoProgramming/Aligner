@@ -23,8 +23,18 @@ struct SourceWord {
 struct CellData {
 	QString text;
 	bool isExcluded;  // можно исключить отдельную ячейку
-	int audioStartMs; // только для аудио столбца
-	int audioEndMs;
+	int audioStartMs; // время начала в миллисекундах
+	int audioEndMs;	  // время конца в миллисекундах
+
+	void clear() {
+		text = "";
+		isExcluded = false;
+		audioStartMs = audioEndMs = -1;
+	}
+
+	CellData() {
+		clear();
+	}
 };
 
 struct PendingInsert {
@@ -42,18 +52,6 @@ struct AlignmentPair {
 
 
 
-struct MatchResult {
-	double matches;			// количество совпавших слов
-	int enTotal;			// сколько английских слов рассмотрено
-	int audioTotal;			// сколько аудио слов рассмотрено
-
-	double getScore() const {
-		int maxWords = qMax(enTotal, audioTotal);
-		if (maxWords == 0) return 0.0;
-		return matches / maxWords;
-	}
-};
-
 QVector<int> countSentences(const QString& text, int startIndex);
 
 class Aligner : public IAlignmentEngine
@@ -70,9 +68,13 @@ public:
 public:
 	Aligner();
 
-	bool Aligner::saveProjectTxt(const QString& filename);
-	bool Aligner::loadProjectTxt(const QString& filename);
+	bool saveProjectTxt(const QString& filename);
+	bool loadProjectTxt(const QString& filename);
 
+	void clearSource();
+	void clearTarget();
+	void clearAudio();
+	
 	// Данные (публичные поля для простоты)
 
 	QString projectPath;
@@ -89,6 +91,8 @@ public:
 
 	QVector<SourceWord> m_enWordsCache;
 	QVector<PendingInsert> m_pendingInserts;  // отложенные вставки
+
+	
 
 	QString currentEnFile;
 	QString currentRuFile;
@@ -127,7 +131,8 @@ public:
 	// Выравнивание
 	void autoAlignTarget();
 	void alignAudioToSource();
-	void assignAudioToRows();
+
+	bool splitAudioToMp3();
 	
 	QString prepareForHunalign(const QVector<CellData>& cells, const QString& lang);
 	QVector<AlignmentPair> parseHunalignOutput(const QString& output);
@@ -145,29 +150,13 @@ public:
 	int rowCount() const;
 	void clear();
 
-	QString debugEnWords(int start, int count);
-	QString debugAudioWords(int start, int count);
-
 private:
-	void updateRussianColumn();
-	void updateAudioColumn();
-	double similarity1(int enStart, int audioStart, int N);
-	double similarity3(int enStart, int audioStart, int N);
-	MatchResult similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth);
-	double similarity(int enStart, int audioStart, int N, int& enUsed, int& audioUsed);
-	double similaritySimple(int enStart, int audioStart, int N);
-
+	
 	double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords);
-
-	// Очистка аудио слова от пунктуации
-	QString cleanAudioWord(const QString& word);
-
-	// Добавление неподошедших аудио слов как отдельной строки
-	void flushPendingAudio(QStringList& pendingAudio, int& pendingStartMs, int& pendingEndMs, int insertPosition);
 
 	// Привязка группы аудио слов к английским предложениям
 	void assignAudioGroup(int enStart, int audioStart, int nWords);
 
-	void syncCellsAfterAlignment();  // Синхронизация после выравнивания
+	void applyPendingInserts();  // Синхронизация после выравнивания
 };
 

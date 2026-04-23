@@ -37,3 +37,17 @@ QString debugAudioWords(IAlignmentEngine *engine, int start, int count)
 
 	return result.join(" ");
 }
+
+QString msToTimeFormat(int ms)
+{
+	int hours = ms / 3600000;
+	int minutes = (ms % 3600000) / 60000;
+	int seconds = (ms % 60000) / 1000;
+	int milliseconds = ms % 1000;
+
+	return QString("%1:%2:%3.%4")
+		.arg(hours, 2, 10, QChar('0'))
+		.arg(minutes, 2, 10, QChar('0'))
+		.arg(seconds, 2, 10, QChar('0'))
+		.arg(milliseconds, 3, 10, QChar('0'));
+}

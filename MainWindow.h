@@ -34,11 +34,18 @@ private slots:
 	void onMergeAllWithPrevious();
 	void onMergeAllWithNext();
 
+	void onClearSource();
+	void onClearTarget();
+	void onClearAudio();
+	void onNormalizeRows();
+
 	// Tools menu
 	void onTargetAlign();
 	void onAudioAlign();
 	void onRecalc();
+
 	void onSplitAudio();
+	void onGenerateAudio();
 
 	void onLoadProject();
 	void onSaveProject();

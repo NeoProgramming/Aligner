@@ -2,7 +2,7 @@
 #include "tools.h"
 #include <QDebug>
 
-void MyAligner::align(IAlignmentEngine* alignerEngine)
+void MyAligner::align(IAlignmentEngine* alignerEngine, int sim)
 {
 	int enIdx = 0;
 	int audioIdx = 0;
@@ -30,9 +30,14 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 
 		for (int offset = 0; offset <= maxSearch; ++offset) {
 
-			double score = 
-				//similarity(enIdx, audioIdx + offset, currentWindow, enUsed, audioUsed);
-				similarity1(enIdx, audioIdx + offset, currentWindow);
+			double score = 0;
+			if(sim==1)
+				score = similarity1(enIdx, audioIdx + offset, currentWindow);
+			else if(sim == 2)
+				score = similarity2(enIdx, audioIdx + offset, currentWindow);
+			else if(sim == 3)
+				score = similarity3(enIdx, audioIdx + offset, currentWindow, enUsed, audioUsed);
+				
 			enUsed = audioUsed = currentWindow;
 
 			// отладка
@@ -57,7 +62,7 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 			}
 
 			// Привязываем совпавшую группу
-			engine->assignMatchedGroup(enIdx, audioIdx, currentWindow, currentWindow);
+			engine->assignMatchedGroup(enIdx, currentWindow, audioIdx, currentWindow);
 			
 			enIdx += enUsed;
 			audioIdx += audioUsed;
@@ -132,7 +137,7 @@ MatchResult MyAligner::similarityRecursive(int enStart, int audioStart, int curr
 	}
 }
 
-double MyAligner::similarity(int enStart, int audioStart, int N, int& enUsed, int& audioUsed)
+double MyAligner::similarity3(int enStart, int audioStart, int N, int& enUsed, int& audioUsed)
 {
 	int M = N - 2;// *2 / 3;
 	MatchResult result = similarityRecursive(enStart, audioStart, N, M);
@@ -194,7 +199,7 @@ double MyAligner::similarity1(int enStart, int audioStart, int N)
 	return totalScore / N;
 }
 
-double MyAligner::similarity3(int enStart, int audioStart, int N)
+double MyAligner::similarity2(int enStart, int audioStart, int N)
 {
 	// Проверка границ
 	if (enStart + N > engine->getSourceWordsCount() || audioStart + N > engine->getAudioWordsCount()) {

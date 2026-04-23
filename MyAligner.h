@@ -20,13 +20,12 @@ class MyAligner
 private:
 	IAlignmentEngine* engine;
 public:
-	void align(IAlignmentEngine* alignerEngine);
+	void align(IAlignmentEngine* alignerEngine, int sim);
 private:
 	double similarity1(int enStart, int audioStart, int N);
-	double similarity3(int enStart, int audioStart, int N);
-	MatchResult similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth);
-	double similarity(int enStart, int audioStart, int N, int& enUsed, int& audioUsed);
-	
+	double similarity2(int enStart, int audioStart, int N);
+	double similarity3(int enStart, int audioStart, int N, int& enUsed, int& audioUsed);
+	MatchResult similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth);	
 };
 
 

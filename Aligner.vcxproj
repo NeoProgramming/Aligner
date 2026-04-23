@@ -88,19 +88,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AdvancedAligner2.cpp" />
     <ClCompile Include="MyAligner.cpp" />
     <ClCompile Include="NeedlemanWunschAligner.cpp" />
     <ClCompile Include="tools.cpp" />
     <QtRcc Include="MainWindow.qrc" />
     <QtMoc Include="MainWindow.h" />
-    <ClCompile Include="AdvancedAligner.cpp" />
+    <ClCompile Include="AdvancedAligner1.cpp" />
     <ClCompile Include="aligner.cpp" />
     <ClCompile Include="audio_parser.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AdvancedAligner.h" />
+    <ClInclude Include="AdvancedAligner1.h" />
+    <ClInclude Include="AdvancedAligner2.h" />
     <ClInclude Include="aligner.h" />
     <ClInclude Include="alignment.h" />
     <ClInclude Include="audio_parser.h" />

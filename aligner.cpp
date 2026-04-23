@@ -8,6 +8,32 @@
 #include <QRegularExpression>
 #include <QDateTime>
 
+#include "tools.h"
+#include "MyAligner.h"
+#include "NeedlemanWunschAligner.h"
+#include "AdvancedAligner1.h"
+#include "AdvancedAligner2.h"
+
+void Aligner::clearSource()
+{
+	for (auto &cell : enCells)
+		cell.clear();
+	modified = true;
+}
+
+void Aligner::clearTarget()
+{
+	for (auto &cell : ruCells)
+		cell.clear();
+	modified = true;
+}
+
+void Aligner::clearAudio()
+{
+	for (auto &cell : audioCells)
+		cell.clear();
+	modified = true;
+}
 
 int Aligner::getSourceWordsCount() const
 {
@@ -43,53 +69,133 @@ const QString& Aligner::getAudioWord(int index) const
 
 void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount)
 {
-	// Собираем аудио слова по индексам предложений
-	QMap<int, QStringList> audioBySentence;
-	QMap<int, int> startMsBySentence;
-	QMap<int, int> endMsBySentence;
-
-	for (int i = 0; i < sourceCount; ++i) {
-		int sentIdx = m_enWordsCache[sourceStart + i].sentenceIndex;
-		int audioPos = audioStart + i;
-
-		audioBySentence[sentIdx].append(audioEntries[audioPos].text);
-
-		if (!startMsBySentence.contains(sentIdx)) {
-			startMsBySentence[sentIdx] = audioEntries[audioPos].startMs;
-		}
-		endMsBySentence[sentIdx] = audioEntries[audioPos].endMs;
+	if (sourceStart < 0 || audioStart < 0 || sourceCount <= 0 || audioCount <= 0) {
+		return;
 	}
 
-	// Записываем в audioCells
-	for (auto it = audioBySentence.begin(); it != audioBySentence.end(); ++it) {
-		int sentIdx = it.key();
+	int sourceEnd = qMin(sourceStart + sourceCount, m_enWordsCache.size());
+	int audioEnd = qMin(audioStart + audioCount, audioEntries.size());
 
-		// Расширяем audioCells если нужно
-		while (audioCells.size() <= sentIdx) {
+	int i = sourceStart;
+	int j = audioStart;
+
+	int currentSentence = m_enWordsCache[i].sentenceIndex;
+	QStringList currentAudioText;
+
+	// ВАЖНО: инициализируем времена из ПЕРВОГО слова в группе
+	// Это может быть не первое слово предложения, но это лучше чем 0
+	int currentStartMs = audioEntries[j].startMs;
+	int currentEndMs = audioEntries[j].endMs;
+
+	// цикл по группам слов
+	while (i < sourceEnd && j < audioEnd) {
+		
+		// индекс предложения
+		int sentIdx = m_enWordsCache[i].sentenceIndex;
+		
+		// если он отличается от текщего
+		if (sentIdx != currentSentence) {
+			// Сохраняем накопленное предложение
+			if (!currentAudioText.isEmpty()) {
+				while (audioCells.size() <= currentSentence) {
+					audioCells.append(CellData());
+				}
+
+				// Добавляем текст
+				if (!audioCells[currentSentence].text.isEmpty()) {
+					audioCells[currentSentence].text += " ";
+				}
+				audioCells[currentSentence].text += currentAudioText.join(" ");
+
+				// Время: обновляем, если это первая запись или новые значения меньше/больше
+				if (audioCells[currentSentence].audioStartMs < 0 ||
+					currentStartMs < audioCells[currentSentence].audioStartMs) {
+					audioCells[currentSentence].audioStartMs = currentStartMs;
+				}
+				if (currentEndMs > audioCells[currentSentence].audioEndMs) {
+					audioCells[currentSentence].audioEndMs = currentEndMs;
+				}
+				audioCells[currentSentence].isExcluded = false;
+			}
+
+			// Начинаем новое предложение
+			currentSentence = sentIdx;
+			currentAudioText.clear();
+
+			// ВАЖНО: переинициализируем времена для нового предложения
+			if (j < audioEnd) {
+				currentStartMs = audioEntries[j].startMs;
+				currentEndMs = audioEntries[j].endMs;
+			}
+		}
+
+		// Добавляем слово
+		if (j < audioEnd) {
+			currentAudioText.append(audioEntries[j].text);
+			currentEndMs = audioEntries[j].endMs;  // обновляем конец текущим словом
+		}
+
+		i++;
+		j++;
+	}
+
+	// Оставшиеся аудио слова (если audioCount > sourceCount)
+	while (j < audioEnd) {
+		currentAudioText.append(audioEntries[j].text);
+		currentEndMs = audioEntries[j].endMs;
+		j++;
+	}
+
+	// Сохраняем последнее предложение
+	if (!currentAudioText.isEmpty()) {
+		while (audioCells.size() <= currentSentence) {
 			audioCells.append(CellData());
 		}
 
-		// ОБЪЕДИНЯЕМ с существующим текстом, а не заменяем!
-		if (!audioCells[sentIdx].text.isEmpty()) {
-			audioCells[sentIdx].text += " ";
+		if (!audioCells[currentSentence].text.isEmpty()) {
+			audioCells[currentSentence].text += " ";
 		}
-		audioCells[sentIdx].text += it.value().join(" ");
-		audioCells[sentIdx].isExcluded = false;
+		audioCells[currentSentence].text += currentAudioText.join(" ");
 
-		// Обновляем время начала (берём минимальное)
-		if (audioCells[sentIdx].audioStartMs == -1 ||
-			startMsBySentence[sentIdx] < audioCells[sentIdx].audioStartMs) {
-			audioCells[sentIdx].audioStartMs = startMsBySentence[sentIdx];
+		if (audioCells[currentSentence].audioStartMs  < 0 ||
+			currentStartMs < audioCells[currentSentence].audioStartMs) {
+			audioCells[currentSentence].audioStartMs = currentStartMs;
 		}
-		// Обновляем время окончания (берём максимальное)
-		if (endMsBySentence[sentIdx] > audioCells[sentIdx].audioEndMs) {
-			audioCells[sentIdx].audioEndMs = endMsBySentence[sentIdx];
+		if (currentEndMs > audioCells[currentSentence].audioEndMs) {
+			audioCells[currentSentence].audioEndMs = currentEndMs;
 		}
+		audioCells[currentSentence].isExcluded = false;
 	}
 }
 
 void Aligner::flushPendingGroup(int sourceIndex, int audioStart, int audioCount)
 {
+	int pendingStartMs = -1, pendingEndMs;
+	QStringList pendingAudio;
+
+	// формируем предложение во временном списке и рассчитываем время начала и конца
+	for (int i = 0; i < audioCount; ++i) {
+		pendingAudio.append(audioEntries[audioStart + i].text);
+		if (pendingStartMs == -1)
+			pendingStartMs = audioEntries[audioStart + i].startMs;
+		pendingEndMs = audioEntries[audioStart + i].endMs;
+	}
+
+	// Вычисляем позицию вставки: в конец массива предложений или в конкретную позицию 
+	int insertPosition = sourceIndex >= m_enWordsCache.size()
+		? enCells.size()
+		: m_enWordsCache[sourceIndex].sentenceIndex;
+
+	// ставим группу в очередь вставки
+	PendingInsert insert;
+	insert.index = insertPosition;
+	insert.audioCell.text = pendingAudio.join(" ");
+	insert.audioCell.isExcluded = false;
+	insert.audioCell.audioStartMs = pendingStartMs;
+	insert.audioCell.audioEndMs = pendingEndMs;
+	m_pendingInserts.append(insert);
+
+	qDebug() << "[PENDING] " << insert.audioCell.text;
 
 }
 
@@ -136,9 +242,6 @@ void Aligner::normalizeRowCount()
 			enCells.removeAt(i);
 			ruCells.removeAt(i);
 			audioCells.removeAt(i);
-		}
-		else {
-			break;  // Как только встретили непустую строку, дальше не идём
 		}
 	}
 }
@@ -415,32 +518,105 @@ void Aligner::calcLexicalSimilarity()
 	}
 }
 
-void Aligner::assignAudioToRows()
+bool Aligner::splitAudioToMp3()
 {
-	if (audioEntries.isEmpty()) return;
-
-	audioCells.clear();
-	for (const AudioEntry& entry : audioEntries) {
-		CellData cell;
-		cell.text = entry.text;
-		cell.isExcluded = false;
-		cell.audioStartMs = entry.startMs;
-		cell.audioEndMs = entry.endMs;
-		audioCells.append(cell);
+	// Проверяем входной файл
+	QFileInfo inputInfo(currentAudioFile);
+	if (!inputInfo.exists()) {
+		qDebug() << "Input audio file not found:" << currentAudioFile;
+		return false;
 	}
 
-	normalizeRowCount();
-	modified = true;
-}
+	QString outputDirectory = QFileInfo(currentAudioFile).absolutePath();
 
-void Aligner::updateRussianColumn()
-{
-	// This is called from UI to sync, but we don't need it now
-}
+	// Создаем выходную директорию, если её нет
+	QDir dir;
+	if (!dir.mkpath(outputDirectory)) {
+		qDebug() << "Failed to create output directory:" << outputDirectory;
+		return false;
+	}
 
-void Aligner::updateAudioColumn()
-{
-	// This is called from UI to sync, but we don't need it now
+	int successCount = 0;
+	int totalValidCells = 0;
+
+	// Перебираем все ячейки
+	for (int i = 0; i < audioCells.size(); ++i) {
+		const CellData& cell = audioCells[i];
+
+		// Пропускаем исключенные или пустые ячейки
+		if (cell.isExcluded) {
+			qDebug() << "Skipping excluded cell" << i;
+			continue;
+		}
+
+		// Проверяем валидность таймкодов
+		if (cell.audioStartMs < 0 || cell.audioEndMs < 0 ||
+			cell.audioEndMs <= cell.audioStartMs) {
+			qDebug() << "Invalid timestamps for cell" << i
+				<< "start:" << cell.audioStartMs
+				<< "end:" << cell.audioEndMs;
+			continue;
+		}
+
+		totalValidCells++;
+
+		// Формируем имя выходного файла
+		QString outputFileName = QString("%1_%2.mp3")
+			.arg(QFileInfo(currentAudioFile).baseName())
+			.arg(i + 1, 4, 10, QChar('0')); // нумерация с 0001
+
+		QString outputFilePath = QDir(outputDirectory)
+			.filePath(outputFileName);
+
+		// Конвертируем миллисекунды в формат времени для FFmpeg (HH:MM:SS.xxx)
+		QString startTime = msToTimeFormat(cell.audioStartMs);
+		QString duration = msToTimeFormat(cell.audioEndMs - cell.audioStartMs);
+
+		// Формируем команду FFmpeg
+		QStringList ffmpegArgs;
+		ffmpegArgs << "-i" << currentAudioFile;
+		ffmpegArgs << "-ss" << startTime;      // время начала
+		ffmpegArgs << "-t" << duration;        // длительность
+		ffmpegArgs << "-acodec" << "libmp3lame"; // кодек MP3
+		ffmpegArgs << "-ab" << "192k";          // битрейт (можно настроить)
+		ffmpegArgs << "-ar" << "44100";         // частота дискретизации
+		ffmpegArgs << "-ac" << "2";             // стерео
+		ffmpegArgs << "-y";                     // перезаписывать файлы
+		ffmpegArgs << outputFilePath;
+
+		// Выполняем FFmpeg
+		QProcess ffmpeg;
+		ffmpeg.start("c:/MySoft/ffmpeg/bin/ffmpeg.exe", ffmpegArgs);
+
+		if (!ffmpeg.waitForStarted(3000)) {
+			qDebug() << "Failed to start ffmpeg for cell" << i;
+			continue;
+		}
+
+		if (!ffmpeg.waitForFinished(60000)) { // таймаут 60 секунд
+			qDebug() << "FFmpeg timeout for cell" << i;
+			ffmpeg.kill();
+			continue;
+		}
+
+		// Проверяем результат
+		if (ffmpeg.exitCode() == 0 && QFile::exists(outputFilePath)) {
+			qDebug() << "Successfully created:" << outputFileName;
+			successCount++;
+
+			// Можно добавить теги ID3
+		//@	addMetadataToMp3(outputFilePath, cell.text, i);
+		}
+		else {
+			qDebug() << "Failed to create:" << outputFileName;
+			qDebug() << "FFmpeg error:" << ffmpeg.readAllStandardError();
+		}
+	}
+
+	qDebug() << "Split completed. Success:" << successCount
+		<< "of" << totalValidCells;
+
+	return successCount == totalValidCells;
 }
 
 QString Aligner::exportToCsv() const
@@ -1107,97 +1283,6 @@ void Aligner::rebuildSourceWordsCache()
 	}
 }
 
-double Aligner::similarity1(int enStart, int audioStart, int N)
-{
-	// Проверка границ
-	if (enStart + N > m_enWordsCache.size() || audioStart + N > audioEntries.size()) {
-		return 0.0;
-	}
-
-	double totalScore = 0.0;
-
-	// Для каждого английского слова ищем наилучшее совпадение в аудио фрагменте
-	// с учётом позиции (штраф за расстояние)
-	for (int enIdx = 0; enIdx < N; ++enIdx) {
-		const QString& enWord = m_enWordsCache[enStart + enIdx].text;
-		if (enWord.isEmpty()) continue;
-
-		double bestWordScore = 0.0;
-		int bestPos = -1;
-
-		// Ищем это слово среди аудио слов в диапазоне
-		for (int audioIdx = 0; audioIdx < N; ++audioIdx) {
-			const QString& audioWord = audioEntries[audioStart + audioIdx].text.toLower();
-
-			if (enWord == audioWord) {
-				// Расстояние в позициях (0 = идеальное совпадение позиции)
-				int distance = abs(enIdx - audioIdx);
-				// Вес: 1.0 для совпадающей позиции, уменьшается с расстоянием
-				double positionWeight = 1.0 / (distance + 1.0);
-				double wordScore = positionWeight;
-
-				if (wordScore > bestWordScore) {
-					bestWordScore = wordScore;
-					bestPos = audioIdx;
-				}
-			}
-		}
-
-		totalScore += bestWordScore;
-	}
-
-	// Нормализуем по длине (максимальный возможный score = N)
-	return totalScore / N;
-}
-
-double Aligner::similarity3(int enStart, int audioStart, int N)
-{
-	// Проверка границ
-	if (enStart + N > m_enWordsCache.size() || audioStart + N > audioEntries.size()) {
-		return 0.0;
-	}
-
-	int matches = 0;
-
-	for (int i = 0; i < N; ++i) {
-		const QString& enWord = m_enWordsCache[enStart + i].text;
-		
-		// Очищаем аудио слово от знаков препинания
-		QString audioWord = audioEntries[audioStart + i].text.toLower();
-		
-		if (enWord == audioWord) {
-			matches++;
-		}
-	}
-
-	return (double)matches / N;
-}
-
-QString Aligner::cleanAudioWord(const QString& word)
-{
-	QString result = word.toLower();
-	result.remove(QRegularExpression("[\\p{P}]"));
-	return result;
-}
-
-void Aligner::flushPendingAudio(QStringList& pendingAudio, int& pendingStartMs, int& pendingEndMs, int insertPosition)
-{
-	if (pendingAudio.isEmpty()) return;
-	
-	PendingInsert insert;
-	insert.index = insertPosition;
-	insert.audioCell.text = pendingAudio.join(" ");
-	insert.audioCell.isExcluded = false;
-	insert.audioCell.audioStartMs = pendingStartMs;
-	insert.audioCell.audioEndMs = pendingEndMs;
-	m_pendingInserts.append(insert);
-
-	pendingAudio.clear();
-	pendingStartMs = -1;
-	pendingEndMs = -1;
-
-	qDebug() << "[PENDING] " << insert.audioCell.text;
-}
 
 void Aligner::assignAudioGroup(int enStart, int audioStart, int nWords)
 {
@@ -1246,44 +1331,8 @@ void Aligner::assignAudioGroup(int enStart, int audioStart, int nWords)
 	}
 }
 
-// aligner.cpp
-QString Aligner::debugEnWords(int start, int count)
-{
-	if (start < 0 || start >= m_enWordsCache.size()) {
-		return QString("<EN invalid start: %1>").arg(start);
-	}
 
-	int end = qMin(start + count, m_enWordsCache.size());
-	QStringList result;
-
-	result.append(QString("EN[%1]").arg(start));
-
-	for (int i = start; i < end; ++i) {
-		result.append(m_enWordsCache[i].text);
-	}
-
-	return result.join(" ");
-}
-
-QString Aligner::debugAudioWords(int start, int count)
-{
-	if (start < 0 || start >= audioEntries.size()) {
-		return QString("<AU invalid start: %1>").arg(start);
-	}
-
-	int end = qMin(start + count, audioEntries.size());
-	QStringList result;
-
-	result.append(QString("AU [%1]").arg(start));
-
-	for (int i = start; i < end; ++i) {
-		result.append(audioEntries[i].text);
-	}
-
-	return result.join(" ");
-}
-
-void Aligner::syncCellsAfterAlignment()
+void Aligner::applyPendingInserts()
 {
 	// Идём с конца, чтобы вставки не влияли на индексы предыдущих
 	for (int i = m_pendingInserts.size() - 1; i >= 0; --i) {
@@ -1317,217 +1366,35 @@ void Aligner::syncCellsAfterAlignment()
 	m_pendingInserts.clear();
 }
 
-MatchResult Aligner::similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth)
-{
-	// Базовый случай: вышли за границы
-	if (enStart >= m_enWordsCache.size() || audioStart >= audioEntries.size()) {
-		return { 0.0, 0, 0 };
-	}
-
-	// Базовый случай: достигли максимальной глубины
-	if (currDepth <= minDepth) {
-		return { 0.0, 0, 0 };
-	}
-
-
-	const QString& enWord = m_enWordsCache[enStart].text;
-	const QString& audioWord = audioEntries[audioStart].text;
-
-	// debug
-	if (audioWord == "1")
-		enStart += 0;
-
-	// Вариант 1: слова совпадают
-	if (enWord == audioWord) {
-		// рекурсивно вызываем для следующей пары слов
-		MatchResult next = similarityRecursive(enStart + 1, audioStart + 1, currDepth - 1, minDepth);
-		// возвращаем результат
-		return { 1.0 + next.matches, 1 + next.enTotal, 1 + next.audioTotal };
-	}
-
-	// Вариант 2: пропускаем английское слово
-	MatchResult skipEn = similarityRecursive(enStart + 1, audioStart, currDepth - 1, minDepth);
-	skipEn.matches += 0;
-	skipEn.enTotal += 1;
-	skipEn.audioTotal += 0;
-
-	// Вариант 3: пропускаем аудио слово
-	MatchResult skipAudio = similarityRecursive(enStart, audioStart + 1, currDepth - 1, minDepth);
-	skipAudio.matches += 0;
-	skipAudio.enTotal += 0;
-	skipAudio.audioTotal += 1;
-
-	// Вариант 4: пропускаем оба слова
-	MatchResult skipBoth = similarityRecursive(enStart + 1, audioStart + 1, currDepth - 1, minDepth);
-	skipBoth.matches += 0;
-	skipBoth.enTotal += 1;
-	skipBoth.audioTotal += 1;
-
-
-	// Выбираем лучший вариант (по score)
-	if (skipEn.matches >= skipAudio.matches  && skipEn.matches >= skipBoth.matches) {
-		return { skipEn.matches , skipEn.enTotal, skipEn.audioTotal };
-	}
-	else if (skipAudio.matches >= skipBoth.matches) {
-		return { skipAudio.matches , skipAudio.enTotal, skipAudio.audioTotal };
-	}
-	else {
-		return { skipBoth.matches , skipBoth.enTotal, skipBoth.audioTotal };
-	}
-}
-
-double Aligner::similarity(int enStart, int audioStart, int N, int& enUsed, int& audioUsed)
-{
-	int M = N - 2;// *2 / 3;
-	MatchResult result = similarityRecursive(enStart, audioStart, N, M);
-
-	if (result.enTotal < M || result.audioTotal < M) {
-		enUsed = 0;
-		audioUsed = 0;
-		return 0.0;
-	}
-	
-	enUsed = result.enTotal;
-	audioUsed = result.audioTotal;
-	int m = qMax(enUsed, audioUsed);
-	if (m == 0)
-		return 0.0;
-	return result.matches / m;  // нормализуем
-}
-
-// Упрощенная версия для понимания концепции
-double Aligner::similaritySimple(int enStart, int audioStart, int N)
-{
-	int n = qMin(N, m_enWordsCache.size() - enStart);
-	int m = qMin(N, audioEntries.size() - audioStart);
-
-	// Создаем таблицу
-	QVector<QVector<int>> dp(n + 1, QVector<int>(m + 1, 0));
-
-	// Заполняем таблицу
-	for (int i = 1; i <= n; i++) {
-		for (int j = 1; j <= m; j++) {
-			// Если слова совпадают
-			if (m_enWordsCache[enStart + i - 1].text ==
-				audioEntries[audioStart + j - 1].text) {
-				dp[i][j] = dp[i - 1][j - 1] + 1;
-			}
-			// Иначе берем максимум из пропуска слова в одном из массивов
-			else {
-				dp[i][j] = qMax(dp[i - 1][j], dp[i][j - 1]);
-			}
-		}
-	}
-
-	// dp[n][m] содержит максимальное количество совпадений
-	int matches = dp[n][m];
-	int totalWords = qMax(n, m);
-
-	return totalWords > 0 ? (double)matches / totalWords : 0.0;
-}
 
 void Aligner::alignAudioToSource()
 {
-	// 
+	// вызов одного из алгоритмических Aligner'ов
 
 	if (enCells.isEmpty() || audioEntries.isEmpty()) return;
 
 	rebuildSourceWordsCache();
-
-	// Сохраняем оригинальные размеры для отслеживания вставок
-	int originalEnSize = enCells.size();
+	m_pendingInserts.clear();
 
 	audioCells.clear();
-	m_pendingInserts.clear();
-//	normalizeRowCount();
-
-	// audioCells нужно подготовить к вставкам, но мы будем вставлять по мере необходимости
-
-	int enIdx = 0;
-	int audioIdx = 0;
-
-	const int WINDOW_SIZE = 12;
-	const double THRESHOLD = 0.8;
-
-	QStringList pendingAudio;
-	int pendingStartMs = -1;
-	int pendingEndMs = -1;
-
-	while (enIdx < m_enWordsCache.size()) {
-		int currentWindow = qMin(WINDOW_SIZE, m_enWordsCache.size() - enIdx);
-
-		// отладка
-		qDebug() << debugEnWords(enIdx, currentWindow);
-
-		int bestOffset = -1;
-		double bestScore = 0.0;
-		int maxSearch = qMin(500, audioEntries.size() - audioIdx - currentWindow);
-
-		int enUsed = 0;
-		int audioUsed = 0;
-
-		for (int offset = 0; offset <= maxSearch; ++offset) {
-			
-			double score = //similarity(enIdx, audioIdx + offset, currentWindow, enUsed, audioUsed);
-				similaritySimple(enIdx, audioIdx + offset, currentWindow); enUsed = audioUsed = currentWindow;
-
-			// отладка
-			qDebug() << QString::asprintf("#%03d: %.5f", offset, score) << debugAudioWords(audioIdx + offset, currentWindow);
-
-			if (score > bestScore) {
-				bestScore = score;
-				bestOffset = offset;
-			}
-			else if (bestScore > THRESHOLD)
-				break;
-			
-			if (score == 1.0)
-				break;
-		}
-
-		if (bestOffset >= 0 && bestScore >= THRESHOLD) {
-			// Есть неподошедшие аудио слова перед совпадением?
-			if (bestOffset > 0) {
-				for (int i = 0; i < bestOffset; ++i) {
-					pendingAudio.append(audioEntries[audioIdx + i].text);
-					if (pendingStartMs == -1) 
-						pendingStartMs = audioEntries[audioIdx + i].startMs;
-					pendingEndMs = audioEntries[audioIdx + i].endMs;
-				}
-
-				// Вычисляем позицию вставки: текущий enIdx 
-				int insertPos = m_enWordsCache[enIdx].sentenceIndex;
-				flushPendingAudio(pendingAudio, pendingStartMs, pendingEndMs, insertPos);
-
-				audioIdx += bestOffset;
-			}
-
-			// Привязываем совпавшую группу
-			assignAudioGroup(enIdx, audioIdx, currentWindow);
-
-			enIdx += enUsed;
-			audioIdx += audioUsed;
-		}
-		else {
-			// Не нашли совпадение — пропускаем английское слово
-			enIdx++;
-		}
-	}
-
-	// Оставшиеся аудио слова в конце
-	if (audioIdx < audioEntries.size()) {
-		for (int i = audioIdx; i < audioEntries.size(); ++i) {
-			pendingAudio.append(audioEntries[i].text);
-			if (pendingStartMs == -1) pendingStartMs = audioEntries[i].startMs;
-			pendingEndMs = audioEntries[i].endMs;
-		}
-		// Вставляем в конец
-		flushPendingAudio(pendingAudio, pendingStartMs, pendingEndMs, enCells.size());
-	}
-
-	// Синхронизация: вставляем пустые en/ru для ячеек с isExcluded = true
 	normalizeRowCount();
-	syncCellsAfterAlignment();
+	
+//	MyAligner aligner;
+//	aligner.align(this, 1);	
+
+	AdvancedAligner aligner;
+	// Настройка параметров (опционально)
+	aligner.setMatchScore(2);
+	aligner.setMismatchScore(-1);
+	aligner.setGapScore(-1);
+	aligner.setRareWordThreshold(2);
+	aligner.setMaxContextSize(3);
+
+	aligner.align(this);
+
+	// Синхронизация: вставляем пустые en/ru
+	normalizeRowCount();
+	applyPendingInserts();
 
 	modified = true;
 }

@@ -49,7 +49,7 @@ void MainWindow::setupUI()
 		<< "Source Text"
 		<< "Target Text"
 		<< "Audio Text"
-		<< "Debug Info");
+		<< "Info");
 
 	setupTableProperties();
 
@@ -119,6 +119,12 @@ void MainWindow::createMenuBar()
 	editMenu->addSeparator();
 	editMenu->addAction("Merge all with Previous", this, &MainWindow::onMergeAllWithPrevious);
 	editMenu->addAction("Merge all with Next", this, &MainWindow::onMergeAllWithNext);
+	editMenu->addSeparator();
+	editMenu->addAction("Clear Source", this, &MainWindow::onClearSource);
+	editMenu->addAction("Clear Target", this, &MainWindow::onClearTarget);
+	editMenu->addAction("Clear Audio", this, &MainWindow::onClearAudio);
+	editMenu->addAction("Normalize rows", this, &MainWindow::onNormalizeRows);
+
 
 	QMenu* toolsMenu = menuBar()->addMenu("&Tools");
 	toolsMenu->addAction("Target align", this, &MainWindow::onTargetAlign);
@@ -127,6 +133,7 @@ void MainWindow::createMenuBar()
 	toolsMenu->addAction("Hunalign Alignment", this, &MainWindow::onHunalignAlign);
 	toolsMenu->addSeparator();
 	toolsMenu->addAction("Split MP3 by Rows", this, &MainWindow::onSplitAudio);
+	toolsMenu->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
 }
 
 void MainWindow::createToolBar()
@@ -146,11 +153,36 @@ void MainWindow::createToolBar()
 	toolbar->addAction("Merge with Next", this, &MainWindow::onMergeWithNext);
 	toolbar->addSeparator();
 	toolbar->addAction("Split MP3", this, &MainWindow::onSplitAudio);
+	toolbar->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
 }
 
 void MainWindow::createStatusBar()
 {
 	statusBar()->showMessage("Ready");
+}
+
+void MainWindow::onClearSource()
+{
+	m_aligner.clearSource();
+	syncTableFromAligner();
+}
+
+void MainWindow::onClearTarget()
+{
+	m_aligner.clearTarget();
+	syncTableFromAligner();
+}
+
+void MainWindow::onClearAudio()
+{
+	m_aligner.clearAudio();
+	syncTableFromAligner();
+}
+
+void MainWindow::onNormalizeRows()
+{
+	m_aligner.normalizeRowCount();
+	syncTableFromAligner();
 }
 
 void MainWindow::syncTableFromAligner()
@@ -163,7 +195,9 @@ void MainWindow::syncTableFromAligner()
 		QString enText = (i < m_aligner.enCells.size()) ? m_aligner.enCells[i].text : "";
 		QString ruText = (i < m_aligner.ruCells.size()) ? m_aligner.ruCells[i].text : "";
 		QString audioText = (i < m_aligner.audioCells.size()) ? m_aligner.audioCells[i].text : "";
-		QString debugText = QString("Row %1").arg(i + 1);
+		QString infoText = (i < m_aligner.audioCells.size()) ? 
+			QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
+			(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0) : "";
 
 		// Статус excluded для каждого столбца
 		bool enExcl = (i < m_aligner.enCells.size()) && m_aligner.enCells[i].isExcluded;
@@ -174,13 +208,13 @@ void MainWindow::syncTableFromAligner()
 		QColor enBg = enExcl ? Qt::lightGray : Qt::white;
 		QColor ruBg = ruExcl ? Qt::lightGray : Qt::white;
 		QColor audioBg = audioExcl ? Qt::lightGray : Qt::white;
-		QColor debugBg = Qt::lightGray;  // Отладочный столбец всегда серый
+		QColor infoBg = Qt::lightGray;  // Отладочный столбец всегда серый
 
 		// Обновляем ячейки с правильным приведением типов
 		updateCell(i, 0, enText, enBg);
 		updateCell(i, 1, ruText, ruBg);
 		updateCell(i, 2, audioText, audioBg);
-		updateCell(i, 3, debugText, debugBg);
+		updateCell(i, 3, infoText, infoBg);
 	}
 
 	updateRowHeights();
@@ -503,16 +537,17 @@ void MainWindow::onSplitAudio()
 		QMessageBox::warning(this, "Error", "Load audio file first");
 		return;
 	}
-
-	if (m_aligner.audioEntries.isEmpty()) {
-		QMessageBox::warning(this, "Error", "Load audio text file (SRT/JSON) first");
-		return;
-	}
-
-	m_aligner.assignAudioToRows();
-	syncTableFromAligner();
-	statusBar()->showMessage(QString("Assigned audio entries to rows"), 3000);
+	
+	m_aligner.splitAudioToMp3();
+	
+	statusBar()->showMessage(QString("Audio file splitted"), 3000);
 }
+
+void MainWindow::onGenerateAudio()
+{
+
+}
+
 
 void MainWindow::showContextMenu(const QPoint& pos)
 {
