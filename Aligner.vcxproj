@@ -91,6 +91,7 @@
     <ClCompile Include="AdvancedAligner2.cpp" />
     <ClCompile Include="MyAligner.cpp" />
     <ClCompile Include="NeedlemanWunschAligner.cpp" />
+    <ClCompile Include="StreamingAligner.cpp" />
     <ClCompile Include="tools.cpp" />
     <QtRcc Include="MainWindow.qrc" />
     <QtMoc Include="MainWindow.h" />
@@ -108,6 +109,7 @@
     <ClInclude Include="audio_parser.h" />
     <ClInclude Include="MyAligner.h" />
     <ClInclude Include="NeedlemanWunschAligner.h" />
+    <ClInclude Include="StreamingAligner.h" />
     <ClInclude Include="tools.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

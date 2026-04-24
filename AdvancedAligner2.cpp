@@ -70,7 +70,6 @@ void AdvancedAligner::align(IAlignmentEngine* engine)
 
 	// Находим якоря (только те, что являются частью последовательностей)
 	QVector<MatchAnchor> anchors = findAnchors();
-
 	if (anchors.isEmpty()) {
 		// Нет надежных якорей - используем глобальное выравнивание
 		globalAlignment(0, n, 0, m);
@@ -79,7 +78,6 @@ void AdvancedAligner::align(IAlignmentEngine* engine)
 
 	// Находим первый валидный якорь (начало последовательности)
 	int firstValidIdx = findFirstValidAnchor(anchors);
-
 	if (firstValidIdx == -1) {
 		globalAlignment(0, n, 0, m);
 		return;
