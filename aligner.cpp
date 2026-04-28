@@ -70,6 +70,94 @@ const QString& Aligner::getAudioWord(int index) const
 
 void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount)
 {
+	int sourceEnd = qMin(sourceStart + sourceCount, m_enWordsCache.size());
+	int audioEnd = qMin(audioStart + audioCount, audioEntries.size());
+
+	int i = sourceStart;
+	int j = audioStart;
+
+	int currentSentence = m_enWordsCache[i].sentenceIndex;
+	QStringList currentAudioText;
+
+	int currentStartMs = audioEntries[j].startMs;
+	int currentEndMs = audioEntries[j].endMs;
+
+	// ЛЯМБДА для сохранения текущего предложения
+	auto flushCurrentSentence = [&]() {
+		if (currentAudioText.isEmpty()) {
+			return;
+		}
+
+		// Расширяем вектор если нужно
+		while (audioCells.size() <= currentSentence) {
+			audioCells.append(CellData());
+		}
+
+		// Добавляем текст
+		if (!audioCells[currentSentence].text.isEmpty()) {
+			audioCells[currentSentence].text += " ";
+		}
+		QString ntext = currentAudioText.join(" ");
+		
+		qDebug() << "FMATCH [" << currentSentence << "] " << audioCells[currentSentence].text << " : " << ntext;
+
+		audioCells[currentSentence].text += ntext;
+
+		// Обновляем время начала
+		if (audioCells[currentSentence].audioStartMs < 0 ||
+			currentStartMs < audioCells[currentSentence].audioStartMs) {
+			audioCells[currentSentence].audioStartMs = currentStartMs;
+		}
+
+		// Обновляем время конца
+		if (currentEndMs > audioCells[currentSentence].audioEndMs) {
+			audioCells[currentSentence].audioEndMs = currentEndMs;
+		}
+
+		audioCells[currentSentence].isExcluded = false;
+	};
+
+	// ОСНОВНОЙ ЦИКЛ
+	while (i < sourceEnd && j < audioEnd) {
+		int sentIdx = m_enWordsCache[i].sentenceIndex;
+
+		if (sentIdx != currentSentence) {
+			// Сохраняем накопленное предложение
+			flushCurrentSentence();
+
+			// Начинаем новое предложение
+			currentSentence = sentIdx;
+			currentAudioText.clear();
+
+			if (j < audioEnd) {
+				currentStartMs = audioEntries[j].startMs;
+				currentEndMs = audioEntries[j].endMs;
+			}
+		}
+
+		// Добавляем слово
+		if (j < audioEnd) {
+			currentAudioText.append(audioEntries[j].text);
+			currentEndMs = audioEntries[j].endMs;
+		}
+
+		i++;
+		j++;
+	}
+
+	// Оставшиеся аудио слова (если audioCount > sourceCount)
+	while (j < audioEnd) {
+		currentAudioText.append(audioEntries[j].text);
+		currentEndMs = audioEntries[j].endMs;
+		j++;
+	}
+
+	// Сохраняем последнее предложение (используем ту же лямбду)
+	flushCurrentSentence();
+}
+/*
+void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount)
+{
 	if (sourceStart < 0 || audioStart < 0 || sourceCount <= 0 || audioCount <= 0) {
 		return;
 	}
@@ -168,7 +256,7 @@ void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStar
 		audioCells[currentSentence].isExcluded = false;
 	}
 }
-
+*/
 void Aligner::flushPendingGroup(int sourceIndex, int audioStart, int audioCount)
 {
 	int pendingStartMs = -1, pendingEndMs;
@@ -959,18 +1047,18 @@ double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSe
 		return 0.0;
 
 	// Считаем совпадения
-	int matches = 0;
+	int similarity = 0;
 	for (const QString& enWord : enWords) {
 		if (ruEquivalent.contains(enWord)) {
-			matches++;
+			similarity++;
 		}
 		else if (QString stem = stemEnglish(enWord);  ruEquivalent.contains(stem)) {
-			matches++;
+			similarity++;
 		}
 	}
 
 	// Нормализуем по длине английского предложения
-	double score = (double)matches / enWords.size();
+	double score = (double)similarity / enWords.size();
 
 	return score;
 }
@@ -1018,7 +1106,7 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		stream << "source: " << en << "\n";
 		stream << "target: " << ru << "\n";
 		stream << "audio: " << audio << "\n";
-		stream << "srcexcl: " << (enExcl ? "true" : "false") << "\n";
+		stream << "src_excl: " << (enExcl ? "true" : "false") << "\n";
 		stream << "tgt_excl: " << (ruExcl ? "true" : "false") << "\n";
 		stream << "audio_excl: " << (audioExcl ? "true" : "false") << "\n";
 		stream << "start_ms: " << startMs << "\n";
@@ -1158,7 +1246,7 @@ double Aligner::calculateWordMatchScore(const QStringList& enWords, const QStrin
 		enSet.insert(w.toLower());
 	}
 
-	int matches = 0;
+	int similarity = 0;
 	int total = enWords.size();
 
 	// Проходим по аудио словам, ищем совпадения
@@ -1168,7 +1256,7 @@ double Aligner::calculateWordMatchScore(const QStringList& enWords, const QStrin
 		word.remove(QRegularExpression("[\\p{P}]"));
 
 		if (enSet.contains(word)) {
-			matches++;
+			similarity++;
 		}
 	}
 
@@ -1181,7 +1269,7 @@ double Aligner::calculateWordMatchScore(const QStringList& enWords, const QStrin
 		lengthPenalty = 0.5;
 	}
 
-	double score = (double)matches / total;
+	double score = (double)similarity / total;
 	return score * lengthPenalty;
 }
 
@@ -1301,8 +1389,8 @@ void Aligner::alignAudioToSource()
 	audioCells.clear();
 	normalizeRowCount();
 	
-//	MyAligner aligner;
-//	aligner.align(this, 1);	
+	MyAligner aligner;
+	aligner.align(this);	
 
 //	AdvancedAligner aligner;
 //	aligner.setMatchScore(2);
@@ -1311,10 +1399,10 @@ void Aligner::alignAudioToSource()
 //	aligner.setRareWordThreshold(2);
 //	aligner.setMaxContextSize(3);
 
-	StreamingAligner aligner;
-	aligner.setMaxLookahead(10);	// ищем совпадения в пределах 10 слов
-	aligner.setMinMatchGroup(1);    // даже одиночные совпадения считаем группой
-	aligner.align(this);
+//	StreamingAligner aligner;
+//	aligner.setMaxLookahead(10);	// ищем совпадения в пределах 10 слов
+//	aligner.setMinMatchGroup(1);    // даже одиночные совпадения считаем группой
+//	aligner.align(this);
 
 	// Синхронизация: вставляем пустые en/ru
 	normalizeRowCount();

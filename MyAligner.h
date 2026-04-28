@@ -1,31 +1,28 @@
 #pragma once
 #include "alignment.h"
 
-
 struct MatchResult {
-	double matches;			// количество совпавших слов
-	int enTotal;			// сколько английских слов рассмотрено
-	int audioTotal;			// сколько аудио слов рассмотрено
-
-	double getScore() const {
-		int maxWords = qMax(enTotal, audioTotal);
-		if (maxWords == 0) return 0.0;
-		return matches / maxWords;
-	}
+	double similarity=0.0;	// от 0 до 1
+	int usedEn = 0;			// сколько слов из английского (исходного) окна использовано
+	int usedAudio = 0;		// сколько слов из аудио окна использовано
 };
-
 
 class MyAligner
 {
 private:
 	IAlignmentEngine* engine;
 public:
-	void align(IAlignmentEngine* alignerEngine, int sim);
+	void align(IAlignmentEngine* alignerEngine);
 private:
 	double similarity1(int enStart, int audioStart, int N);
 	double similarity2(int enStart, int audioStart, int N);
-	double similarity3(int enStart, int audioStart, int N, int& enUsed, int& audioUsed);
+	MatchResult similarity3(int enStart, int audioStart, int N);
 	MatchResult similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth);	
+	MatchResult similarityDP(int enStart, int audioStart);
+	MatchResult similarityDPB(int enStart, int audioStart);
+private:
+	static const int WINDOW_SIZE = 16;
+	int DP[WINDOW_SIZE + 1][WINDOW_SIZE + 1];
 };
 
 

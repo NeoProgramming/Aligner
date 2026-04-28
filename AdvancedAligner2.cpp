@@ -412,15 +412,15 @@ void AdvancedAligner::approximateAlignment(int sourceStart, int sourceCount,
 		int bestMatches = 0;
 
 		for (int a = audioStart + processedAudio; a <= audioStart + audioCount - m_windowSize; a += m_stepSize) {
-			int matches = 0;
+			int similarity = 0;
 			for (int k = 0; k < m_windowSize && s + k < sEnd && a + k < audioStart + audioCount; k++) {
 				if (m_engine->getSourceWord(s + k) == m_engine->getAudioWord(a + k)) {
-					matches++;
+					similarity++;
 				}
 			}
 
-			if (matches > bestMatches) {
-				bestMatches = matches;
+			if (similarity > bestMatches) {
+				bestMatches = similarity;
 				bestAudioPos = a;
 			}
 		}
