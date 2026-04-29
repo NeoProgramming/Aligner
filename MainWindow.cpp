@@ -20,6 +20,7 @@
 #include <QCloseEvent>
 #include <QResizeEvent>
 #include <QDebug>
+#include "tools.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -32,6 +33,11 @@ MainWindow::MainWindow(QWidget *parent)
 	createStatusBar();
 	setWindowTitle("Text Alignment Tool");
 	resize(1200, 700);
+
+	bool r;
+	r = equ("hi", "hi~12");
+	r = equ("hi2", "hi~12");
+	r = true;
 }
 
 MainWindow::~MainWindow()
@@ -203,11 +209,14 @@ void MainWindow::syncTableFromAligner()
 		bool enExcl = (i < m_aligner.enCells.size()) && m_aligner.enCells[i].isExcluded;
 		bool ruExcl = (i < m_aligner.ruCells.size()) && m_aligner.ruCells[i].isExcluded;
 		bool audioExcl = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isExcluded;
+		bool audioErr = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isError;
 
 		// Цвета фона
 		QColor enBg = enExcl ? Qt::lightGray : Qt::white;
 		QColor ruBg = ruExcl ? Qt::lightGray : Qt::white;
-		QColor audioBg = audioExcl ? Qt::lightGray : Qt::white;
+		QColor audioBg = 
+			audioErr ? Qt::red :
+			audioExcl ? Qt::lightGray : Qt::white;
 		QColor infoBg = Qt::lightGray;  // Отладочный столбец всегда серый
 
 		// Обновляем ячейки с правильным приведением типов
@@ -470,6 +479,21 @@ void MainWindow::onExcludeRow()
 		.arg(m_aligner.enCells[row].isExcluded ? "excluded" : "included"), 2000);
 }
 
+void MainWindow::onDebugInfo()
+{
+	int row = m_table->currentRow();
+	int col = m_table->currentColumn();
+
+	if (row < 0) return;
+	if (col < 0 || col > 2) {
+		QMessageBox::information(this, "Info", "Select a cell in the column to exclude");
+		return;
+	}
+
+	QString s = m_aligner.sourceWordsBySentence(row);
+	QMessageBox::information(this, "Info", s);
+}
+
 void MainWindow::onRecalc()
 {
 	m_aligner.calcLexicalSimilarity();
@@ -488,7 +512,7 @@ void MainWindow::onTargetAlign()
 		return;
 	}
 
-	m_aligner.autoAlignTarget();
+	m_aligner.alignTargetToSource();
 	syncTableFromAligner();
 	setModified(true);
 	statusBar()->showMessage("Target alignment completed", 3000);
@@ -526,6 +550,11 @@ void MainWindow::onAudioAlign()
 	}
 
 	m_aligner.alignAudioToSource();
+	
+	if (!m_aligner.checkAudioAlignment()) {
+		QMessageBox::warning(this, "Error", "Check audio alignment error");
+	}
+
 	syncTableFromAligner();
 	setModified(true);
 	statusBar()->showMessage("Audio-alignment completed", 3000);
@@ -571,6 +600,8 @@ void MainWindow::showContextMenu(const QPoint& pos)
 			QApplication::clipboard()->setText(m_table->currentItem()->text());
 		}
 	});
+	menu.addSeparator();
+	menu.addAction("Debug info", this, &MainWindow::onDebugInfo);
 
 	menu.exec(m_table->viewport()->mapToGlobal(pos));
 }

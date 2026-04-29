@@ -57,6 +57,14 @@ const QString& Aligner::getSourceWord(int index) const
 	return m_enWordsCache[index].text;
 }
 
+int Aligner::getSourceSentence(int index) const
+{
+	if (index < 0 || index >= m_enWordsCache.size()) {
+		return -1;
+	}
+	return m_enWordsCache[index].sentenceIndex;
+}
+
 const QString& Aligner::getAudioWord(int index) const
 {
 	static const QString EMPTY;
@@ -99,7 +107,7 @@ void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStar
 		}
 		QString ntext = currentAudioText.join(" ");
 		
-		qDebug() << "FMATCH [" << currentSentence << "] " << audioCells[currentSentence].text << " : " << ntext;
+		qDebug() << "FMATCH S=" << currentSentence << audioCells[currentSentence].text << " : " << ntext;
 
 		audioCells[currentSentence].text += ntext;
 
@@ -280,11 +288,12 @@ void Aligner::flushPendingGroup(int sourceIndex, int audioStart, int audioCount)
 	insert.index = insertPosition;
 	insert.audioCell.text = pendingAudio.join(" ");
 	insert.audioCell.isExcluded = false;
+	insert.audioCell.isError = false;
 	insert.audioCell.audioStartMs = pendingStartMs;
 	insert.audioCell.audioEndMs = pendingEndMs;
 	m_pendingInserts.append(insert);
 
-	qDebug() << "[PENDING] " << insert.audioCell.text;
+	qDebug() << "PENDING S=" << insertPosition << insert.audioCell.text;
 
 }
 
@@ -538,7 +547,7 @@ void Aligner::loadAudioFile(const QString& filename)
 }
 
 
-void Aligner::autoAlignTarget()
+void Aligner::alignTargetToSource()
 {
 	// разбить файл второго языка по предложениям 
 	// (а в перспективе сопоставить его с текстовым файлом первого языка по словарю)
@@ -979,35 +988,6 @@ void Aligner::loadDictionary(const QString& filename)
 	qDebug() << "Loaded" << lineCount << "dictionary entries";
 }
 
-QStringList Aligner::tokenizeWords(const QString& text)
-{
-	QStringList result;
-	QString currentToken;
-
-	for (int i = 0; i < text.length(); ++i) {
-		QChar ch = text[i];
-
-		// Буква (любого алфавита) или цифра
-		if (ch.isLetter() || ch.isDigit()) {
-			currentToken += ch;
-		}
-		else {
-			if (!currentToken.isEmpty()) {
-				QString lwr = currentToken.toLower();
-				result.append(lwr);
-				currentToken.clear();
-			}
-		}
-	}
-
-	if (!currentToken.isEmpty()) {
-		QString lwr = currentToken.toLower();
-		result.append(lwr);
-		currentToken.clear();
-	}
-
-	return result;
-}
 
 
 
@@ -1293,6 +1273,35 @@ void Aligner::rebuildSourceWordsCache()
 	}
 }
 
+bool Aligner::checkAudioAlignment()
+{
+	struct AudioWord {
+		QString word;
+		int sentIdx;
+	};
+	QVector<AudioWord> audioCache;
+	for (int sentIdx = 0; sentIdx < audioCells.size(); ++sentIdx) {
+		QStringList words = tokenizeWords(audioCells[sentIdx].text);
+		for (int wordIdx = 0; wordIdx < words.size(); ++wordIdx) {
+			AudioWord aw;
+			aw.word = words[wordIdx].toLower();
+			aw.sentIdx = sentIdx;
+			audioCache.append(aw);
+		}
+	}
+	
+	bool r = true;
+	for (int i = 0, n = qMin(audioCache.size(), audioEntries.size()); i < n; i++)
+		if (!equ(audioCache[i].word, audioEntries[i].text)) {
+			int si = audioCache[i].sentIdx;
+			audioCells[si].isError = true;
+			r = false;
+		}			
+	if (audioCache.size() != audioEntries.size())
+		return false;
+	return r;
+}
+
 
 void Aligner::assignAudioGroup(int enStart, int audioStart, int nWords)
 {
@@ -1411,5 +1420,17 @@ void Aligner::alignAudioToSource()
 	modified = true;
 }
 
+QString Aligner::sourceWordsBySentence(int sentIdx)
+{
+	// отладочная - список слов этого предложения
+	QString s;
+	for (int i = 0; i < m_enWordsCache.size(); i++) {
+		if (m_enWordsCache[i].sentenceIndex == sentIdx) {
+			s += m_enWordsCache[i].text;
+			s += "\r\n";
+		}
+	}
+	return s;
+}
 
 

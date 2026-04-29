@@ -11,7 +11,7 @@ QString debugEnWords(IAlignmentEngine *engine, int start, int count)
 	int end = qMin(start + count, engine->getSourceWordsCount());
 	QStringList result;
 
-	result.append(QString("EN[%1]").arg(start));
+	result.append(QString("EN W=%1").arg(start));
 
 	for (int i = start; i < end; ++i) {
 		result.append(engine->getSourceWord(i));
@@ -29,7 +29,7 @@ QString debugAudioWords(IAlignmentEngine *engine, int start, int count)
 	int end = qMin(start + count, engine->getAudioWordsCount());
 	QStringList result;
 
-	result.append(QString("AU [%1]").arg(start));
+	result.append(QString("AU W=%1").arg(start));
 
 	for (int i = start; i < end; ++i) {
 		result.append(engine->getAudioWord(i));
@@ -132,3 +132,71 @@ QString stemEnglish(const QString& word)
 
 	return result;
 }
+
+bool equ(const QString& word1, const QString& word2)
+{
+	int i = 0;
+	int len1 = word1.length();
+	int len2 = word2.length();
+
+	while (i < len1 && i < len2) {
+		QChar c1 = word1[i];
+		QChar c2 = word2[i];
+
+		// Если в любой из строк встретили '~' - дальше не сравниваем
+		if (c1 == '~' || c2 == '~') {
+			break;
+		}
+
+		// Если символы не совпадают - строки разные
+		if (c1 != c2) {
+			return false;
+		}
+
+		i++;
+	}
+
+	// Если одна строка закончилась, а в другой на этой позиции не '~'
+	if (i < len1) {
+		return word1[i] == '~';
+	}
+	if (i < len2) {
+		return word2[i] == '~';
+	}
+
+	// Обе строки закончились одновременно
+	return true;
+}
+
+QStringList tokenizeWords(const QString& text)
+{
+	QStringList result;
+	QString currentToken;
+
+	for (int i = 0; i < text.length(); ++i) {
+		QChar ch = text[i];
+
+		// Буква (любого алфавита) или цифра
+		if (ch.isLetter() || ch.isDigit() || ch == '~') {
+			currentToken += ch;
+		}
+		else if (ch == QChar(8217) || ch == QChar(39))
+			currentToken += QChar(39);
+		else {
+			if (!currentToken.isEmpty()) {
+				QString lwr = currentToken.toLower();
+				result.append(lwr);
+				currentToken.clear();
+			}
+		}
+	}
+
+	if (!currentToken.isEmpty()) {
+		QString lwr = currentToken.toLower();
+		result.append(lwr);
+		currentToken.clear();
+	}
+
+	return result;
+}
+

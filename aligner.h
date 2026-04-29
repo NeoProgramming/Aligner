@@ -5,12 +5,11 @@
 #include <QHash>
 #include "alignment.h"
 
+// элемент массива слов из json
 struct AudioEntry {
 	QString text;	// слово
 	int startMs;	// время начала слова в миллисекундах
 	int endMs;		// время конца слова в миллисекундах
-
-	//	int index;		// индекс в json
 };
 
 struct SourceWord {
@@ -23,12 +22,14 @@ struct SourceWord {
 struct CellData {
 	QString text;
 	bool isExcluded;  // можно исключить отдельную ячейку
+	bool isError;
 	int audioStartMs; // время начала в миллисекундах
 	int audioEndMs;	  // время конца в миллисекундах
 
 	void clear() {
 		text = "";
 		isExcluded = false;
+		isError = false;
 		audioStartMs = audioEndMs = -1;
 	}
 
@@ -62,6 +63,7 @@ public:
 	int getAudioWordsCount() const override;
 	const QString& getSourceWord(int index) const override;
 	const QString& getAudioWord(int index) const override;
+	int getSourceSentence(int index) const override;
 
 	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) override;
 	void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) override;
@@ -111,13 +113,14 @@ public:
 	void loadAudioFile(const QString& filename);
 
 	void loadDictionary(const QString& filename);
-	QStringList tokenizeWords(const QString& text);
+	
 	double lexicalSimilarity(const QString& enSentence, const QString& ruSentence);
 
 	void calcLexicalSimilarity();
 
 	// Обновить кэш после изменений
 	void rebuildSourceWordsCache();
+	bool checkAudioAlignment();
 
 	// Разбивка текста
 	QVector<QString> splitIntoSentences(const QString& text);
@@ -129,7 +132,7 @@ public:
 	void setCellText(int row, int column, const QString& text);
 
 	// Выравнивание
-	void autoAlignTarget();
+	void alignTargetToSource();
 	void alignAudioToSource();
 
 	bool splitAudioToMp3();
@@ -149,6 +152,8 @@ public:
 	// Вспомогательные
 	int rowCount() const;
 	void clear();
+
+	QString sourceWordsBySentence(int i);
 
 private:
 	

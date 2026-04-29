@@ -13,6 +13,8 @@ public:
 
 	virtual void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) = 0;
 	virtual void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) = 0;
+
+	virtual int  getSourceSentence(int index) const = 0;
 };
 
 

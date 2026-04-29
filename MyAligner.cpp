@@ -17,55 +17,56 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 	while (enIdx < engine->getSourceWordsCount()) {
 		int currentWindow = qMin(WINDOW_SIZE, engine->getSourceWordsCount() - enIdx);
 
+		// индекс предложени€ дл€ отладки; здесь 
+		int sentIdx = engine->getSourceSentence(enIdx);
+		QString sentStr = QString::asprintf("S=%d", sentIdx);
+
 		// выводим "EN" строку
-		qDebug() << debugEnWords(engine, enIdx, currentWindow);
+		qDebug() << sentStr << debugEnWords(engine, enIdx, currentWindow);
 
 		int bestOffset = -1;
 		double bestScore = 0.0;
+		MatchResult bestMR;
 		int maxSearch = qMin(500, engine->getAudioWordsCount() - audioIdx - currentWindow);
-
-		int enUsed = 0;
-		int audioUsed = 0;
-
+		
+		// двигаем окно в некоторых пределах
 		for (int offset = 0; offset <= maxSearch; ++offset) {
-
-			double score = 0;
-			MatchResult mr;
+			
 			//score = similarity1(enIdx, audioIdx + offset, currentWindow);
 			//score = similarity2(enIdx, audioIdx + offset, currentWindow);
 			//mr = similarity3(enIdx, audioIdx + offset);
-			mr = similarityDP(enIdx, audioIdx + offset);
-				
-			score = mr.similarity;
-			enUsed = mr.usedEn;
-			audioUsed = mr.usedAudio;
+			MatchResult mr = similarityDP(enIdx, audioIdx + offset);		
 
 			// отладка
-			qDebug() << QString::asprintf("#%03d: %.5f", offset, score) << debugAudioWords(engine, audioIdx + offset, currentWindow);
+			qDebug() << sentStr << QString::asprintf("W=%03d: %.5f", offset, mr.similarity) << debugAudioWords(engine, audioIdx + offset, currentWindow);
 
-			if (score > bestScore) {
-				bestScore = score;
-				bestOffset = offset;
+			// если текущее значение лучше - делаем его "наилучшим"
+			if (mr.similarity > bestScore) {
+				bestMR = mr;
+				bestOffset = offset;				
 			}
+			// иначе, если текущее хуже и наилучшее выше порога - считаем что нашли локальный оптимум
 			else if (bestScore > THRESHOLD)
 				break;
-
-			if (score == 1.0)
+			// если  текущее строго 1 - идеальное совпадение
+			if (mr.similarity == 1.0)
 				break;
-		}
+		}// конец цикла поиска наилучшего совпадени€ окна
 
+		// если удалось найти какое-то совпадение групп слов
 		if (bestOffset >= 0 && bestScore >= THRESHOLD) {
-			// ≈сть неподошедшие аудио слова перед совпадением?
+						
+			// ≈сть неподошедшие аудио слова перед совпадением? (из-за движени€ окна)
 			if (bestOffset > 0) {
 				engine->flushPendingGroup(enIdx, audioIdx, bestOffset);
 				audioIdx += bestOffset;
 			}
 
 			// ѕрив€зываем совпавшую группу
-			engine->assignMatchedGroup(enIdx, currentWindow, audioIdx, currentWindow);
+			engine->assignMatchedGroup(enIdx, bestMR.usedEn, audioIdx, bestMR.usedAudio);
 			
-			enIdx += enUsed;
-			audioIdx += audioUsed;
+			enIdx += bestMR.usedEn;
+			audioIdx += bestMR.usedAudio;
 		}
 		else {
 			// Ќе нашли совпадение Ч пропускаем английское слово
@@ -128,7 +129,8 @@ MatchResult MyAligner::similarityDP(int enStart, int audioStart)
 			QString audioWord = engine->getAudioWord(audioStart + j - 1);
 
 			// —тоимость замены (0 если слова равны, 1 если разные)
-			int cost = (enWord == audioWord) ? 0 : 1;
+			//int cost = (enWord == audioWord) ? 0 : 1;
+			int cost = equ(enWord, audioWord) ? 0 : 1;
 
 			// “ри варианта:
 			// 1. «амена/совпадение

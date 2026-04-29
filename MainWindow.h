@@ -34,6 +34,8 @@ private slots:
 	void onMergeAllWithPrevious();
 	void onMergeAllWithNext();
 
+	void onDebugInfo();
+
 	void onClearSource();
 	void onClearTarget();
 	void onClearAudio();
