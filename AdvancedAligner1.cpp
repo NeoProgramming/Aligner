@@ -104,7 +104,7 @@ bool AdvancedAligner1::verifyAnchor(int sourceIdx, int audioIdx)
 {
 	// Проверяем контекст из 3 слов до и после
 	int contextSize = 3;
-	int similarity = 0;
+	int score = 0;
 	int checks = 0;
 
 	for (int i = -contextSize; i <= contextSize; i++) {
@@ -116,13 +116,13 @@ bool AdvancedAligner1::verifyAnchor(int sourceIdx, int audioIdx)
 		if (s >= 0 && s < engine->getSourceWordsCount() &&
 			a >= 0 && a < engine->getAudioWordsCount()) {
 			if (engine->getSourceWord(s) == engine->getAudioWord(a)) {
-				similarity++;
+				score++;
 			}
 			checks++;
 		}
 	}
 
-	return checks > 0 && (double)similarity / checks > 0.5;
+	return checks > 0 && (double)score / checks > 0.5;
 }
 
 void AdvancedAligner1::alignSegment(int sourceStart, int sourceCount,
@@ -243,15 +243,15 @@ void AdvancedAligner1::approximateAlignment(int sourceStart, int sourceCount,
 		int bestMatches = 0;
 
 		for (int a = audioStart; a <= audioStart + audioCount - WINDOW_SIZE; a += STEP) {
-			int similarity = 0;
+			int score = 0;
 			for (int k = 0; k < WINDOW_SIZE && s + k < sEnd && a + k < audioStart + audioCount; k++) {
 				if (engine->getSourceWord(s + k) == engine->getAudioWord(a + k)) {
-					similarity++;
+					score++;
 				}
 			}
 
-			if (similarity > bestMatches) {
-				bestMatches = similarity;
+			if (score > bestMatches) {
+				bestMatches = score;
 				bestAudioPos = a;
 			}
 		}

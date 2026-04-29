@@ -1027,20 +1027,20 @@ double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSe
 		return 0.0;
 
 	// Считаем совпадения
-	int similarity = 0;
+	int score = 0;
 	for (const QString& enWord : enWords) {
 		if (ruEquivalent.contains(enWord)) {
-			similarity++;
+			score++;
 		}
 		else if (QString stem = stemEnglish(enWord);  ruEquivalent.contains(stem)) {
-			similarity++;
+			score++;
 		}
 	}
 
 	// Нормализуем по длине английского предложения
-	double score = (double)similarity / enWords.size();
+	double dscore = (double)score / enWords.size();
 
-	return score;
+	return dscore;
 }
 
 // aligner.cpp
@@ -1226,7 +1226,7 @@ double Aligner::calculateWordMatchScore(const QStringList& enWords, const QStrin
 		enSet.insert(w.toLower());
 	}
 
-	int similarity = 0;
+	int score = 0;
 	int total = enWords.size();
 
 	// Проходим по аудио словам, ищем совпадения
@@ -1236,7 +1236,7 @@ double Aligner::calculateWordMatchScore(const QStringList& enWords, const QStrin
 		word.remove(QRegularExpression("[\\p{P}]"));
 
 		if (enSet.contains(word)) {
-			similarity++;
+			score++;
 		}
 	}
 
@@ -1249,8 +1249,8 @@ double Aligner::calculateWordMatchScore(const QStringList& enWords, const QStrin
 		lengthPenalty = 0.5;
 	}
 
-	double score = (double)similarity / total;
-	return score * lengthPenalty;
+	double dscore = (double)score / total;
+	return dscore * lengthPenalty;
 }
 
 // aligner.cpp

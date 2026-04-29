@@ -2,8 +2,8 @@
 #include "alignment.h"
 
 struct MatchResult {
-	double similarity=0.0;	// от 0 до 1
-	int usedEn = 0;			// сколько слов из английского (исходного) окна использовано
+	double score=0.0;		// коэффициент похожести от 0 до 1
+	int usedSource = 0;		// сколько слов из исходного окна использовано
 	int usedAudio = 0;		// сколько слов из аудио окна использовано
 };
 
@@ -20,6 +20,8 @@ private:
 	MatchResult similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth);	
 	MatchResult similarityDP(int enStart, int audioStart);
 	MatchResult similarityDPB(int enStart, int audioStart);
+
+	MatchResult similarityCG(int enStart, int audioStart);
 private:
 	static const int WINDOW_SIZE = 16;
 	int DP[WINDOW_SIZE + 1][WINDOW_SIZE + 1];

@@ -11,7 +11,7 @@ QString debugEnWords(IAlignmentEngine *engine, int start, int count)
 	int end = qMin(start + count, engine->getSourceWordsCount());
 	QStringList result;
 
-	result.append(QString("EN W=%1").arg(start));
+	result.append(QString("                 EN W=%1").arg(start));
 
 	for (int i = start; i < end; ++i) {
 		result.append(engine->getSourceWord(i));
