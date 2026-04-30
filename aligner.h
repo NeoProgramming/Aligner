@@ -10,6 +10,8 @@ struct AudioEntry {
 	QString text;	// слово
 	int startMs;	// время начала слова в миллисекундах
 	int endMs;		// время конца слова в миллисекундах
+	int sentIdx;	// индекс предложения, которому соответствует это слово
+	bool ins;		// вставка в новое предложение перед данным
 };
 
 struct SourceWord {
@@ -63,7 +65,9 @@ public:
 	int getAudioWordsCount() const override;
 	const QString& getSourceWord(int index) const override;
 	const QString& getAudioWord(int index) const override;
-	int getSourceSentence(int index) const override;
+	
+	int  getSourceSentence(int index) const override;
+	void setAudioSentence(int index, int sentidx, bool ins) override;
 
 	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) override;
 	void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) override;

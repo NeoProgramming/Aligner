@@ -65,6 +65,15 @@ int Aligner::getSourceSentence(int index) const
 	return m_enWordsCache[index].sentenceIndex;
 }
 
+void Aligner::setAudioSentence(int index, int sentidx, bool ins)
+{
+	if (index < 0 || index >= audioEntries.size()) {
+		return;
+	}
+	audioEntries[index].sentIdx = sentidx;
+	audioEntries[index].ins = ins;
+}
+
 const QString& Aligner::getAudioWord(int index) const
 {
 	static const QString EMPTY;
@@ -163,108 +172,7 @@ void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStar
 	// Сохраняем последнее предложение (используем ту же лямбду)
 	flushCurrentSentence();
 }
-/*
-void Aligner::assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount)
-{
-	if (sourceStart < 0 || audioStart < 0 || sourceCount <= 0 || audioCount <= 0) {
-		return;
-	}
 
-	int sourceEnd = qMin(sourceStart + sourceCount, m_enWordsCache.size());
-	int audioEnd = qMin(audioStart + audioCount, audioEntries.size());
-
-	int i = sourceStart;
-	int j = audioStart;
-
-	int currentSentence = m_enWordsCache[i].sentenceIndex;
-	QStringList currentAudioText;
-
-	// ВАЖНО: инициализируем времена из ПЕРВОГО слова в группе
-	// Это может быть не первое слово предложения, но это лучше чем 0
-	int currentStartMs = audioEntries[j].startMs;
-	int currentEndMs = audioEntries[j].endMs;
-
-	// цикл по группам слов
-	while (i < sourceEnd && j < audioEnd) {
-		
-		// индекс предложения
-		int sentIdx = m_enWordsCache[i].sentenceIndex;
-		
-		// если он отличается от текщего
-		if (sentIdx != currentSentence) {
-			// Сохраняем накопленное предложение
-			if (!currentAudioText.isEmpty()) {
-				while (audioCells.size() <= currentSentence) {
-					audioCells.append(CellData());
-				}
-
-				// Добавляем текст
-				if (!audioCells[currentSentence].text.isEmpty()) {
-					audioCells[currentSentence].text += " ";
-				}
-				audioCells[currentSentence].text += currentAudioText.join(" ");
-
-				// Время: обновляем, если это первая запись или новые значения меньше/больше
-				if (audioCells[currentSentence].audioStartMs < 0 ||
-					currentStartMs < audioCells[currentSentence].audioStartMs) {
-					audioCells[currentSentence].audioStartMs = currentStartMs;
-				}
-				if (currentEndMs > audioCells[currentSentence].audioEndMs) {
-					audioCells[currentSentence].audioEndMs = currentEndMs;
-				}
-				audioCells[currentSentence].isExcluded = false;
-			}
-
-			// Начинаем новое предложение
-			currentSentence = sentIdx;
-			currentAudioText.clear();
-
-			// ВАЖНО: переинициализируем времена для нового предложения
-			if (j < audioEnd) {
-				currentStartMs = audioEntries[j].startMs;
-				currentEndMs = audioEntries[j].endMs;
-			}
-		}
-
-		// Добавляем слово
-		if (j < audioEnd) {
-			currentAudioText.append(audioEntries[j].text);
-			currentEndMs = audioEntries[j].endMs;  // обновляем конец текущим словом
-		}
-
-		i++;
-		j++;
-	}
-
-	// Оставшиеся аудио слова (если audioCount > sourceCount)
-	while (j < audioEnd) {
-		currentAudioText.append(audioEntries[j].text);
-		currentEndMs = audioEntries[j].endMs;
-		j++;
-	}
-
-	// Сохраняем последнее предложение
-	if (!currentAudioText.isEmpty()) {
-		while (audioCells.size() <= currentSentence) {
-			audioCells.append(CellData());
-		}
-
-		if (!audioCells[currentSentence].text.isEmpty()) {
-			audioCells[currentSentence].text += " ";
-		}
-		audioCells[currentSentence].text += currentAudioText.join(" ");
-
-		if (audioCells[currentSentence].audioStartMs  < 0 ||
-			currentStartMs < audioCells[currentSentence].audioStartMs) {
-			audioCells[currentSentence].audioStartMs = currentStartMs;
-		}
-		if (currentEndMs > audioCells[currentSentence].audioEndMs) {
-			audioCells[currentSentence].audioEndMs = currentEndMs;
-		}
-		audioCells[currentSentence].isExcluded = false;
-	}
-}
-*/
 void Aligner::flushPendingGroup(int sourceIndex, int audioStart, int audioCount)
 {
 	int pendingStartMs = -1, pendingEndMs;

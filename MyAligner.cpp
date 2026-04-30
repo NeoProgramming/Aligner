@@ -14,34 +14,38 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 
 	engine = alignerEngine;
 	
+	int enCount = 0;// отладочный счетчик
 	while (enIdx < engine->getSourceWordsCount()) {
-		int currentWindow = qMin(WINDOW_SIZE, engine->getSourceWordsCount() - enIdx);
-
+		
 		// индекс предложения для отладки; здесь 
 		int sentIdx = engine->getSourceSentence(enIdx);
-		QString sentStr = QString::asprintf("S=%d", sentIdx);
+		QString sentStr = QString::asprintf("#%d S=%d", enCount, sentIdx);
+		enCount++;
 
+		// размер исходного окна
+		int maxSrc = sourceWindowSize(enIdx);
+		
 		// выводим "EN" строку
-		qDebug() << sentStr << debugEnWords(engine, enIdx, currentWindow);
+		qDebug() << sentStr << "MS=" << maxSrc << debugEnWords(engine, enIdx, maxSrc);
 
 		int bestOffset = -1;
 		double bestScore = 0.0;
 		MatchResult bestMR;
-		int maxSearch = qMin(500, engine->getAudioWordsCount() - audioIdx - currentWindow);
+		int maxSearch = qMin(500, engine->getAudioWordsCount() - audioIdx - WINDOW_SIZE);
 
 		if (sentIdx == 43)
 			sentIdx = sentIdx;
 		
 		// двигаем окно в некоторых пределах
 		for (int offset = 0; offset <= maxSearch; ++offset) {
-			
-			//score = similarity1(enIdx, audioIdx + offset, currentWindow);
-			//score = similarity2(enIdx, audioIdx + offset, currentWindow);
-			//mr = similarity3(enIdx, audioIdx + offset);
-			MatchResult mr = similarityCG(enIdx, audioIdx + offset);		
+		
+			// размер аудио окна
+			int maxAud = audioWindowSize(audioIdx + offset, maxSrc);
+
+			MatchResult mr = similarityCG(enIdx, maxSrc, audioIdx + offset, maxAud);
 
 			// отладка
-			qDebug() << sentStr << QString::asprintf("W=%03d: %.5f", offset, mr.score) << debugAudioWords(engine, audioIdx + offset, currentWindow);
+			qDebug() << sentStr << QString::asprintf("W=%03d: %.5f", offset, mr.score) << debugAudioWords(engine, audioIdx + offset, maxAud);
 
 			// если текущее значение лучше - делаем его "наилучшим"
 			if (mr.score > bestScore) {
@@ -84,6 +88,28 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 	if (audioIdx < engine->getAudioWordsCount()) {
 		engine->flushPendingGroup(enIdx, audioIdx, engine->getAudioWordsCount() - audioIdx);
 	}
+}
+
+int MyAligner::sourceWindowSize(int srcStart)
+{
+	// определить размер исходного окна, опираясь на предложения
+	int s0 = engine->getSourceSentence(srcStart);
+	int n = engine->getSourceWordsCount();
+	for (int i = srcStart; i < n; i++) {
+		int s = engine->getSourceSentence(i);
+		// разрыв только в точке перехода между предложениями
+		if (s != s0 && i - srcStart >= WINDOW_SIZE)
+			return i - srcStart;
+		s0 = s;
+	}
+	return n - srcStart;
+}
+
+int MyAligner::audioWindowSize(int audioStart, int sourceWindow)
+{
+	// определить размер аудио окна, "с запасом" на то что в аудио есть вставки
+	int s = qMin((int)(sourceWindow * 1.3), engine->getAudioWordsCount() - audioStart);
+	return s;
 }
 
 MatchResult MyAligner::similarityDP(int enStart, int audioStart)
@@ -281,17 +307,11 @@ inline double wordSimilarity(const QString& a, const QString& b) {
 	return double(common) / std::max(a.size(), b.size());
 }
 
-MatchResult MyAligner::similarityCG(int enStart, int audioStart)
+MatchResult MyAligner::similarityCG(int enStart, int maxSrc, int audioStart, int maxAud)
 {
-	const int MAX_W = 16;
-	const int MIN_W = 10;
-
 	int srcCount = engine->getSourceWordsCount();
 	int audCount = engine->getAudioWordsCount();
-
-	int maxSrc = std::min(MAX_W, srcCount - enStart);
-	int maxAud = std::min(MAX_W, audCount - audioStart);
-
+	
 	struct Cell {
 		double score = 0.0;
 		int prev_i = -1;
@@ -347,20 +367,43 @@ MatchResult MyAligner::similarityCG(int enStart, int audioStart)
 		}
 	}
 
+	int bestI = maxSrc;
+	int bestJ = WINDOW_SIZE;
+
+	double bestScore = -1e9;
+	int minAud = std::min(WINDOW_SIZE, maxAud);
+	for (int j = minAud; j <= maxAud; ++j) {
+		double norm = dp[maxSrc][j].score / std::max(maxSrc, j);
+
+		if (norm > bestScore) {
+			bestScore = norm;
+			bestJ = j;
+		}
+	}
+	
+	/*
 	// выбираем лучший конец (но не меньше MIN_W)
 	double bestScore = -1e9;
 	int bestI = 0, bestJ = 0;
 
-	for (int i = MIN_W; i <= maxSrc; ++i) {
-		for (int j = MIN_W; j <= maxAud; ++j) {
+	int minSrc = std::min(WINDOW_SIZE, maxSrc);
+	int minAud = std::min(WINDOW_SIZE, maxAud);
+
+	for (int i = minSrc; i <= maxSrc; ++i) {
+		for (int j = minAud; j <= maxAud; ++j) {
+
 			double norm = dp[i][j].score / std::max(i, j);
-			if (norm > bestScore) {
+
+			if (norm > bestScore ||
+				(qFuzzyCompare(norm, bestScore) && std::max(i, j) > std::max(bestI, bestJ)))
+			{
 				bestScore = norm;
 				bestI = i;
 				bestJ = j;
 			}
 		}
 	}
+	*/
 
 	// backtrack
 	int i = bestI, j = bestJ;

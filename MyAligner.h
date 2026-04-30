@@ -21,7 +21,10 @@ private:
 	MatchResult similarityDP(int enStart, int audioStart);
 	MatchResult similarityDPB(int enStart, int audioStart);
 
-	MatchResult similarityCG(int enStart, int audioStart);
+	MatchResult similarityCG(int enStart, int maxSrc, int audioStart, int maxAud);
+
+	int sourceWindowSize(int srcStart);
+	int audioWindowSize(int audioStart, int sourceWindow);
 private:
 	static const int WINDOW_SIZE = 16;
 	int DP[WINDOW_SIZE + 1][WINDOW_SIZE + 1];
