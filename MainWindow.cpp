@@ -27,6 +27,9 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_table(nullptr)
 	, m_ffmpegProcess(nullptr)
 {
+	// Загружаем настройки
+	cfg.loadSettings();
+
 	setupUI();
 	createMenuBar();
 	createToolBar();
@@ -42,6 +45,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+	cfg.saveSettings();
+
 	if (m_ffmpegProcess) {
 		delete m_ffmpegProcess;
 	}
@@ -784,11 +789,12 @@ void MainWindow::onSaveProjectAs()
 void MainWindow::onLoadProject()
 {
 	QString filename = QFileDialog::getOpenFileName(this, "Load Project",
-		QString(), "Alignment Project (*.align);;All files (*.*)");
+		cfg.recentProjectPath, "Alignment Project (*.align);;All files (*.*)");
 	if (filename.isEmpty()) return;
 
 	if (m_aligner.loadProjectTxt(filename)) {
 		m_aligner.projectPath = filename;
+		cfg.recentProjectPath = filename;
 		syncTableFromAligner();
 		setModified(false);
 		statusBar()->showMessage("Project loaded: " + filename, 3000);

@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QTableWidget>
 #include "aligner.h"
+#include "Settings.h"
 
 class QAction;
 class QProcess;
@@ -78,7 +79,7 @@ private:
 	void setModified(bool modified);
 	void updateCell(int row, int column, const QString& text, const QColor& bgColor);
 
-	
+	Settings cfg;
 	Aligner m_aligner;
 	QTableWidget* m_table;
 	QProcess* m_ffmpegProcess;
