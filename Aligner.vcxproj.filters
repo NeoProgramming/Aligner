@@ -64,6 +64,9 @@
     <ClCompile Include="Settings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AudioEntriesViewer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aligner.h">
@@ -99,5 +102,10 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="my.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="AudioEntriesViewer.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
   </ItemGroup>
 </Project>

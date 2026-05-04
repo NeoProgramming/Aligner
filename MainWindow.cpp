@@ -21,6 +21,7 @@
 #include <QResizeEvent>
 #include <QDebug>
 #include "tools.h"
+#include "AudioEntriesViewer.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -37,6 +38,8 @@ MainWindow::MainWindow(QWidget *parent)
 	setWindowTitle("Text Alignment Tool");
 	resize(1200, 700);
 
+	m_audioEntriesViewer = new AudioEntriesViewer(this);// nullptr);
+
 	bool r;
 	r = equ("hi", "hi~12");
 	r = equ("hi2", "hi~12");
@@ -50,6 +53,28 @@ MainWindow::~MainWindow()
 	if (m_ffmpegProcess) {
 		delete m_ffmpegProcess;
 	}
+}
+
+// Метод для обновления и показа окна
+void MainWindow::showAudioEntriesViewer()
+{
+	QVector<AudioEntry> viewEntries;
+	viewEntries.reserve(m_aligner.audioEntries.size());
+
+	for (const auto& entry : m_aligner.audioEntries) {
+		AudioEntry viewEntry;
+		viewEntry.text = entry.text;
+		viewEntry.startMs = entry.startMs;
+		viewEntry.endMs = entry.endMs;
+		viewEntry.sentenceIdx = entry.sentenceIdx;
+		viewEntry.ins = entry.ins;
+		viewEntries.append(viewEntry);
+	}
+
+	m_audioEntriesViewer->updateEntries(viewEntries);
+	m_audioEntriesViewer->show();
+	m_audioEntriesViewer->raise();  // Поднять окно на передний план
+	m_audioEntriesViewer->activateWindow();  // Активировать окно
 }
 
 void MainWindow::setupUI()
@@ -165,6 +190,8 @@ void MainWindow::createToolBar()
 	toolbar->addSeparator();
 	toolbar->addAction("Split MP3", this, &MainWindow::onSplitAudio);
 	toolbar->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
+	toolbar->addSeparator();
+	toolbar->addAction("Show Audio Entires", this, &MainWindow::onShowAudioEntires);
 }
 
 void MainWindow::createStatusBar()
@@ -372,6 +399,11 @@ void MainWindow::onExport()
 void MainWindow::onExit()
 {
 	close();
+}
+
+void MainWindow::onShowAudioEntires()
+{
+	showAudioEntriesViewer();
 }
 
 void MainWindow::onSplitCell()

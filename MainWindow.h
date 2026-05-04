@@ -9,6 +9,7 @@ class QAction;
 class QProcess;
 class QCloseEvent;
 class QResizeEvent;
+class AudioEntriesViewer;
 
 class MainWindow : public QMainWindow
 {
@@ -26,6 +27,8 @@ private slots:
 	void onLoadAudioFile();
 	void onExport();
 	void onExit();
+
+	void onShowAudioEntires();
 
 	// Edit menu
 	void onSplitCell();
@@ -79,9 +82,12 @@ private:
 	void setModified(bool modified);
 	void updateCell(int row, int column, const QString& text, const QColor& bgColor);
 
+	void showAudioEntriesViewer();
+
 	Settings cfg;
 	Aligner m_aligner;
 	QTableWidget* m_table;
 	QProcess* m_ffmpegProcess;
+	AudioEntriesViewer* m_audioEntriesViewer;
 };
 

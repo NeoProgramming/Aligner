@@ -5,14 +5,7 @@
 #include <QHash>
 #include "alignment.h"
 
-// элемент массива слов из json
-struct AudioEntry {
-	QString text;	// слово
-	int startMs;	// время начала слова в миллисекундах
-	int endMs;		// время конца слова в миллисекундах
-	int sentIdx;	// индекс предложения, которому соответствует это слово
-	bool ins;		// вставка в новое предложение перед данным
-};
+
 
 struct SourceWord {
 	QString text;           // слово в нижнем регистре (для сравнения)
@@ -71,6 +64,9 @@ public:
 
 	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) override;
 	void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) override;
+private:	// old
+	void assignMatchedGroup2(int sourceStart, int sourceCount, int audioStart, int audioCount);
+	void flushPendingGroup2(int sourceIndex, int audioStart, int audioCount);
 public:
 	Aligner();
 
@@ -125,6 +121,7 @@ public:
 	// Обновить кэш после изменений
 	void rebuildSourceWordsCache();
 	bool checkAudioAlignment();
+	void rebuildAudioSentences();
 
 	// Разбивка текста
 	QVector<QString> splitIntoSentences(const QString& text);
