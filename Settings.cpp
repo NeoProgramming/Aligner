@@ -5,6 +5,7 @@ static const char INI_FILE[] = "aligner.ini";
 
 #define SETTINGS_LIST	\
 	X(recentProjectPath,	"path", "")\
+	X(ffmpegPath,			"ffmpeg", "c:/MySoft/ffmpeg/bin/ffmpeg.exe")\
 	X(windowGeometry,		"win_geometry", QVariant())\
 	X(windowState,			"win_state", QVariant())
 	

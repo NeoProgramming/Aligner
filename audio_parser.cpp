@@ -135,9 +135,6 @@ QVector<AudioEntry> AudioParser::parseJson(const QString& filename)
 			entry.text.remove(QRegularExpression("[^\\w\\s']"));
 			entry.text = entry.text.toLower();
 			
-			// debug
-			entry.text += QString::asprintf("~%d", entries.size());
-
 			// Извлекаем время (Whisper даёт в секундах с плавающей точкой)
 			double startSec = wordObj["start"].toDouble(-1.0);
 			double endSec = wordObj["end"].toDouble(-1.0);

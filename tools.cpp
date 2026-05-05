@@ -1,5 +1,8 @@
 #include "tools.h"
 #include <QStringList>
+#include <QFile>
+#include <QTextStream>
+#include <QDebug>
 
 // aligner.cpp
 QString debugEnWords(IAlignmentEngine *engine, int start, int count)
@@ -135,6 +138,11 @@ QString stemEnglish(const QString& word)
 
 bool equ(const QString& word1, const QString& word2)
 {
+	return word1 == word2;
+}
+
+bool equ2(const QString& word1, const QString& word2)
+{
 	int i = 0;
 	int len1 = word1.length();
 	int len2 = word2.length();
@@ -200,3 +208,55 @@ QStringList tokenizeWords(const QString& text)
 	return result;
 }
 
+void saveToFile(const QString& filename, const QString& content)
+{
+	QFile file(filename);
+	if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+		QTextStream stream(&file);
+		stream.setCodec("UTF-8");
+		stream << content;
+		file.close();
+	}
+	else {
+		qWarning() << "Cannot write to file:" << filename;
+	}
+}
+
+double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& targetSentence)
+{
+	if (sourceSentence.isEmpty() && targetSentence.isEmpty()) {
+		return 1.0;
+	}
+
+	if (sourceSentence.isEmpty() || targetSentence.isEmpty()) {
+		return 0.0;
+	}
+
+	QStringList sourceWords = sourceSentence.split(' ', Qt::SkipEmptyParts);
+	QStringList targetWords = targetSentence.split(' ', Qt::SkipEmptyParts);
+
+	// Считаем совпадения слов (позиция не важна)
+	QMap<QString, int> sourceCount;
+	for (const QString& w : sourceWords) {
+		sourceCount[w.toLower()]++;
+	}
+
+	int matches = 0;
+	for (const QString& w : targetWords) {
+		QString lower = w.toLower();
+		if (sourceCount.contains(lower) && sourceCount[lower] > 0) {
+			matches++;
+			sourceCount[lower]--;
+		}
+	}
+
+	double recall = (double)matches / sourceWords.size();      // сколько слов исходника нашли
+	double precision = (double)matches / targetWords.size();   // сколько слов аудио совпало
+
+	if (precision + recall == 0) return 0.0;
+
+	// F-мера (среднее гармоническое)
+	double f1 = 2 * (precision * recall) / (precision + recall);
+
+	return f1;
+}

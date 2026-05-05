@@ -8,6 +8,7 @@ struct Settings
 	void saveSettings();
 
 	QString recentProjectPath;
+	QString ffmpegPath;
 		
 	QByteArray windowGeometry;
 	QByteArray windowState;

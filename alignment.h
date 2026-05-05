@@ -29,4 +29,44 @@ struct AudioEntry {
 	bool ins;			// вставка в новое предложение перед данным
 };
 
+// слово с индексом предложени€ и позицией в предложении
+struct SourceWord {
+	QString text;           // слово в нижнем регистре (дл€ сравнени€)
+	int sentenceIndex;      // индекс в массиве предложений
+	int wordIndex;          // позици€ в предложении
+};
+
+// ƒанные дл€ одной текстовой €чейки
+struct TextSentence {
+	QString text;
+	bool isExcluded;  // можно исключить отдельную €чейку
+	bool isError;
+
+	void clear() {
+		text = "";
+		isExcluded = false;
+		isError = false;
+	}
+
+	TextSentence() {
+		clear();
+	}
+};
+
+// ƒанные дл€ одной аудио €чейки
+struct AudioSentence : public TextSentence {
+
+	int audioStartMs; // врем€ начала в миллисекундах
+	int audioEndMs;	  // врем€ конца в миллисекундах
+	double score;
+
+	void clear() {
+		TextSentence::clear();
+		audioStartMs = audioEndMs = -1;
+	}
+
+	AudioSentence() {
+		clear();
+	}
+};
 

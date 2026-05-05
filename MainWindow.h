@@ -25,7 +25,7 @@ private slots:
 	void onLoadTarget();
 	void onLoadAudioText();
 	void onLoadAudioFile();
-	void onExport();
+	
 	void onExit();
 
 	void onShowAudioEntires();
@@ -65,7 +65,7 @@ protected:
 
 private slots:
 	void onEditCell();  // новый слот для редактирования
-	void onHunalignAlign();
+	
 private:
 	bool loadAudioTextFile(const QString& filename);
 	void setupUI();

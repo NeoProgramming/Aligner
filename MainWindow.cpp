@@ -38,12 +38,7 @@ MainWindow::MainWindow(QWidget *parent)
 	setWindowTitle("Text Alignment Tool");
 	resize(1200, 700);
 
-	m_audioEntriesViewer = new AudioEntriesViewer(this);// nullptr);
-
-	bool r;
-	r = equ("hi", "hi~12");
-	r = equ("hi2", "hi~12");
-	r = true;
+	m_audioEntriesViewer = new AudioEntriesViewer(this);
 }
 
 MainWindow::~MainWindow()
@@ -143,7 +138,6 @@ void MainWindow::createMenuBar()
 	fileMenu->addAction("Load project...", this, &MainWindow::onLoadProject);
 	fileMenu->addAction("Save project", this, &MainWindow::onSaveProject);
 	fileMenu->addAction("Save project as...", this, &MainWindow::onSaveProjectAs);
-	fileMenu->addAction("Export", this, &MainWindow::onExport);
 	fileMenu->addSeparator();
 	fileMenu->addAction("Exit", this, &MainWindow::onExit, QKeySequence::Quit);
 
@@ -166,7 +160,7 @@ void MainWindow::createMenuBar()
 	toolsMenu->addAction("Target align", this, &MainWindow::onTargetAlign);
 	toolsMenu->addAction("Audio align", this, &MainWindow::onAudioAlign);
 	toolsMenu->addAction("Recalc", this, &MainWindow::onRecalc);
-	toolsMenu->addAction("Hunalign Alignment", this, &MainWindow::onHunalignAlign);
+	
 	toolsMenu->addSeparator();
 	toolsMenu->addAction("Split MP3 by Rows", this, &MainWindow::onSplitAudio);
 	toolsMenu->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
@@ -182,7 +176,7 @@ void MainWindow::createToolBar()
 	toolbar->addSeparator();
 	toolbar->addAction("Target align", this, &MainWindow::onTargetAlign);
 	toolbar->addAction("Audio align", this, &MainWindow::onAudioAlign);
-	toolbar->addAction("Hunalign", this, &MainWindow::onHunalignAlign);
+	
 	toolbar->addSeparator();
 	toolbar->addAction("Split", this, &MainWindow::onSplitCell);
 	toolbar->addAction("Merge with Prev", this, &MainWindow::onMergeWithPrevious);
@@ -230,16 +224,16 @@ void MainWindow::syncTableFromAligner()
 
 	for (int i = 0; i < rows; ++i) {
 		// Получаем текст для каждого столбца
-		QString enText = (i < m_aligner.enCells.size()) ? m_aligner.enCells[i].text : "";
-		QString ruText = (i < m_aligner.ruCells.size()) ? m_aligner.ruCells[i].text : "";
+		QString enText = (i < m_aligner.sourceCells.size()) ? m_aligner.sourceCells[i].text : "";
+		QString ruText = (i < m_aligner.targetCells.size()) ? m_aligner.targetCells[i].text : "";
 		QString audioText = (i < m_aligner.audioCells.size()) ? m_aligner.audioCells[i].text : "";
 		QString infoText = (i < m_aligner.audioCells.size()) ? 
 			QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
 			(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0) : "";
 
 		// Статус excluded для каждого столбца
-		bool enExcl = (i < m_aligner.enCells.size()) && m_aligner.enCells[i].isExcluded;
-		bool ruExcl = (i < m_aligner.ruCells.size()) && m_aligner.ruCells[i].isExcluded;
+		bool enExcl = (i < m_aligner.sourceCells.size()) && m_aligner.sourceCells[i].isExcluded;
+		bool ruExcl = (i < m_aligner.targetCells.size()) && m_aligner.targetCells[i].isExcluded;
 		bool audioExcl = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isExcluded;
 		bool audioErr = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isError;
 
@@ -281,13 +275,13 @@ void MainWindow::syncAlignerFromTable()
 	int rows = m_table->rowCount();
 
 	// Расширяем массивы если нужно
-	while (m_aligner.enCells.size() < rows) m_aligner.enCells.append(CellData());
-	while (m_aligner.ruCells.size() < rows) m_aligner.ruCells.append(CellData());
-	while (m_aligner.audioCells.size() < rows) m_aligner.audioCells.append(CellData());
+	while (m_aligner.sourceCells.size() < rows) m_aligner.sourceCells.append(TextSentence());
+	while (m_aligner.targetCells.size() < rows) m_aligner.targetCells.append(TextSentence());
+	while (m_aligner.audioCells.size() < rows) m_aligner.audioCells.append(AudioSentence());
 
 	for (int i = 0; i < rows; ++i) {
-		if (m_table->item(i, 0)) m_aligner.enCells[i].text = m_table->item(i, 0)->text();
-		if (m_table->item(i, 1)) m_aligner.ruCells[i].text = m_table->item(i, 1)->text();
+		if (m_table->item(i, 0)) m_aligner.sourceCells[i].text = m_table->item(i, 0)->text();
+		if (m_table->item(i, 1)) m_aligner.targetCells[i].text = m_table->item(i, 1)->text();
 		if (m_table->item(i, 2)) m_aligner.audioCells[i].text = m_table->item(i, 2)->text();
 	}
 
@@ -366,34 +360,6 @@ void MainWindow::onLoadAudioFile()
 
 	m_aligner.loadAudioFile(filename);
 	statusBar()->showMessage("Audio file loaded: " + filename, 3000);
-}
-
-void MainWindow::onExport()
-{
-	if (m_aligner.rowCount()==0) {
-		QMessageBox::warning(this, "Error", "No data to export");
-		return;
-	}
-
-	QString filename = QFileDialog::getSaveFileName(this, "Export Alignment",
-		QString(), "CSV files (*.csv);;Text files (*.txt)");
-	if (filename.isEmpty()) return;
-
-	QFile file(filename);
-	if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-		QMessageBox::warning(this, "Error", "Cannot create file");
-		return;
-	}
-
-	QTextStream stream(&file);
-	stream.setCodec("UTF-8");
-
-	if (filename.endsWith(".csv")) {
-		stream << m_aligner.exportToCsv();
-	}
-	
-	file.close();
-	statusBar()->showMessage("Exported to " + filename, 3000);
 }
 
 void MainWindow::onExit()
@@ -513,7 +479,7 @@ void MainWindow::onExcludeRow()
 
 	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Target" : "Audio";
 	statusBar()->showMessage(QString("Cell in %1 column %2").arg(columnName)
-		.arg(m_aligner.enCells[row].isExcluded ? "excluded" : "included"), 2000);
+		.arg(m_aligner.sourceCells[row].isExcluded ? "excluded" : "included"), 2000);
 }
 
 void MainWindow::onDebugInfo()
@@ -544,7 +510,7 @@ void MainWindow::onTargetAlign()
 		return;
 	}
 
-	if (m_aligner.currentRuFile.isEmpty()) {
+	if (m_aligner.currentTargetFile.isEmpty()) {
 		QMessageBox::warning(this, "Error", "Load Target text first");
 		return;
 	}
@@ -587,10 +553,6 @@ void MainWindow::onAudioAlign()
 	}
 
 	m_aligner.alignAudioToSource();
-	
-	if (!m_aligner.checkAudioAlignment()) {
-		QMessageBox::warning(this, "Error", "Check audio alignment error");
-	}
 
 	syncTableFromAligner();
 	setModified(true);
@@ -604,7 +566,7 @@ void MainWindow::onSplitAudio()
 		return;
 	}
 	
-	m_aligner.splitAudioToMp3();
+	m_aligner.splitAudioToMp3(cfg.ffmpegPath);
 	
 	statusBar()->showMessage(QString("Audio file splitted"), 3000);
 }
@@ -694,8 +656,8 @@ void MainWindow::onEditCell()
 			// Сохраняем изменения перед split
 			QString newText = textEdit->toPlainText();
 			if (newText != originalText) {
-				if (col == 0) m_aligner.enCells[row].text = newText;
-				if (col == 1) m_aligner.ruCells[row].text = newText;
+				if (col == 0) m_aligner.sourceCells[row].text = newText;
+				if (col == 1) m_aligner.targetCells[row].text = newText;
 				if (col == 2) m_aligner.audioCells[row].text = newText;
 			}
 			
@@ -712,8 +674,8 @@ void MainWindow::onEditCell()
 		QString newText = textEdit->toPlainText();
 		if (newText != originalText) {
 			item->setText(newText);
-			if (col == 0) m_aligner.enCells[row].text = newText;
-			if (col == 1) m_aligner.ruCells[row].text = newText;
+			if (col == 0) m_aligner.sourceCells[row].text = newText;
+			if (col == 1) m_aligner.targetCells[row].text = newText;
 			if (col == 2) m_aligner.audioCells[row].text = newText;
 			m_aligner.modified = true;
 			setModified(true);
@@ -733,55 +695,6 @@ void MainWindow::splitRowAtPosition(int row, int col, int cursorPos)
 	syncTableFromAligner();
 	setModified(true);
 	statusBar()->showMessage("Cell split", 2000);
-}
-
-void MainWindow::onHunalignAlign()
-{
-	// Проверяем, что загружены оба текста
-	if (m_aligner.enCells.isEmpty()) {
-		QMessageBox::warning(this, "Error", "Load Source text first");
-		return;
-	}
-
-	if (m_aligner.ruCells.isEmpty()) {
-		QMessageBox::warning(this, "Error", "Load Target text first");
-		return;
-	}
-
-	// Проверяем наличие hunalign.exe
-	QFileInfo hunalignInfo("hunalign.exe");
-	if (!hunalignInfo.exists()) {
-		QMessageBox::warning(this, "Error",
-			"hunalign.exe not found in current directory.\n"
-			"Please download it from:\n"
-			"ftp://ftp.mokk.bme.hu/Hunglish/src/hunalign/latest/hunalign-1.1-windows.zip");
-		return;
-	}
-
-	// Спрашиваем пользователя, хочет ли он продолжить
-	QMessageBox::StandardButton reply = QMessageBox::question(
-		this,
-		"Confirm",
-		"This will replace current Target text alignment with Hunalign result.\n"
-		"Current Target text will be overwritten.\n\n"
-		"Continue?",
-		QMessageBox::Yes | QMessageBox::No
-	);
-
-	if (reply != QMessageBox::Yes) return;
-
-	// Показываем индикатор прогресса (простой)
-	statusBar()->showMessage("Running Hunalign alignment... This may take a while.", 0);
-	QApplication::processEvents();  // Обновляем UI
-
-	// Запускаем выравнивание
-	m_aligner.runHunalignAlignment();
-
-	// Обновляем таблицу
-	syncTableFromAligner();
-	setModified(true);
-
-	statusBar()->showMessage("Hunalign alignment completed", 3000);
 }
 
 void MainWindow::onSaveProject()

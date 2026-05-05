@@ -43,22 +43,10 @@
     <ClCompile Include="audio_parser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="NeedlemanWunschAligner.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="MyAligner.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="tools.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="AdvancedAligner2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="AdvancedAligner1.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="StreamingAligner.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Settings.cpp">
@@ -78,22 +66,10 @@
     <ClInclude Include="alignment.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="NeedlemanWunschAligner.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="MyAligner.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="tools.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="AdvancedAligner2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="AdvancedAligner1.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="StreamingAligner.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Settings.h">

@@ -7,37 +7,6 @@
 
 
 
-struct SourceWord {
-	QString text;           // слово в нижнем регистре (для сравнения)
-	int sentenceIndex;      // индекс в массиве предложений
-	int wordIndex;          // позиция в предложении
-};
-
-// Данные для одной ячейки
-struct CellData {
-	QString text;
-	bool isExcluded;  // можно исключить отдельную ячейку
-	bool isError;
-	int audioStartMs; // время начала в миллисекундах
-	int audioEndMs;	  // время конца в миллисекундах
-
-	void clear() {
-		text = "";
-		isExcluded = false;
-		isError = false;
-		audioStartMs = audioEndMs = -1;
-	}
-
-	CellData() {
-		clear();
-	}
-};
-
-struct PendingInsert {
-	int index;           // позиция для вставки
-	CellData audioCell;  // данные для вставки
-};
-
 struct AlignmentPair {
 	QString targetText;
 	QString sourceText;
@@ -46,9 +15,6 @@ struct AlignmentPair {
 	QVector<int> sourceIndices;
 };
 
-
-
-QVector<int> countSentences(const QString& text, int startIndex);
 
 class Aligner : public IAlignmentEngine
 {
@@ -64,9 +30,6 @@ public:
 
 	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) override;
 	void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) override;
-private:	// old
-	void assignMatchedGroup2(int sourceStart, int sourceCount, int audioStart, int audioCount);
-	void flushPendingGroup2(int sourceIndex, int audioStart, int audioCount);
 public:
 	Aligner();
 
@@ -82,22 +45,15 @@ public:
 	QString projectPath;
 
 	 // Независимые массивы для каждого столбца
-	QVector<CellData> enCells;      // английский текст
-	QVector<CellData> ruCells;      // русский текст
-	QVector<CellData> audioCells;   // аудио текст (с таймкодами)
-
-	// Массив указателей для удобного доступа по индексу столбца
-	QVector<QVector<CellData>*> columnCells;
-
-	QVector<AudioEntry> audioEntries;
-
-	QVector<SourceWord> m_enWordsCache;
-	QVector<PendingInsert> m_pendingInserts;  // отложенные вставки
-
+	QVector<TextSentence> sourceCells;      // оригинальный текст
+	QVector<TextSentence> targetCells;      // переведенный текст
+	QVector<AudioSentence> audioCells;		// аудио текст (с таймкодами и отладочной информацией)
 	
-
-	QString currentEnFile;
-	QString currentRuFile;
+	QVector<AudioEntry> audioEntries;
+	QVector<SourceWord> sourceWordsCache;
+	
+	QString currentSourceFile;
+	QString currentTargetFile;
 	QString currentAudioTextFile;
 	QString currentAudioFile;
 
@@ -120,8 +76,8 @@ public:
 
 	// Обновить кэш после изменений
 	void rebuildSourceWordsCache();
-	bool checkAudioAlignment();
 	void rebuildAudioSentences();
+	void insertSentence(const QStringList &currentWords, int currentSentenceIdx, bool currentIsIns, int currentStartMs, int currentEndMs);
 
 	// Разбивка текста
 	QVector<QString> splitIntoSentences(const QString& text);
@@ -136,17 +92,8 @@ public:
 	void alignTargetToSource();
 	void alignAudioToSource();
 
-	bool splitAudioToMp3();
-	
-	QString prepareForHunalign(const QVector<CellData>& cells, const QString& lang);
-	QVector<AlignmentPair> parseHunalignOutput(const QString& output);
-	void runHunalignAlignment();
-	void applyAlignment(const QVector<AlignmentPair>& pairs);
-	void saveToFile(const QString& filename, const QString& content);
-
-	// Экспорт
-	QString exportToCsv() const;
-	
+	bool splitAudioToMp3(const QString &ffmpegPath);
+		
 	// Нормализация количества строк
 	void normalizeRowCount();
 	
@@ -157,12 +104,6 @@ public:
 	QString sourceWordsBySentence(int i);
 
 private:
-	
 	double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords);
-
-	// Привязка группы аудио слов к английским предложениям
-	void assignAudioGroup(int enStart, int audioStart, int nWords);
-
-	void applyPendingInserts();  // Синхронизация после выравнивания
 };
 
