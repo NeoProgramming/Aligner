@@ -1,5 +1,4 @@
 ﻿#include "mainwindow.h"
-#include "audio_parser.h"
 #include <QApplication>
 #include <QMenuBar>
 #include <QToolBar>
@@ -164,6 +163,8 @@ void MainWindow::createMenuBar()
 	toolsMenu->addSeparator();
 	toolsMenu->addAction("Split MP3 by Rows", this, &MainWindow::onSplitAudio);
 	toolsMenu->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
+	toolsMenu->addSeparator();
+	toolsMenu->addAction("Statistics", this, &MainWindow::onStat);
 }
 
 void MainWindow::createToolBar()
@@ -227,9 +228,12 @@ void MainWindow::syncTableFromAligner()
 		QString enText = (i < m_aligner.sourceCells.size()) ? m_aligner.sourceCells[i].text : "";
 		QString ruText = (i < m_aligner.targetCells.size()) ? m_aligner.targetCells[i].text : "";
 		QString audioText = (i < m_aligner.audioCells.size()) ? m_aligner.audioCells[i].text : "";
-		QString infoText = (i < m_aligner.audioCells.size()) ? 
-			QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
-			(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0) : "";
+	//	QString infoText = (i < m_aligner.audioCells.size()) ? 
+	//		QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
+	//		(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0) : "";
+
+		QString infoText = (i < m_aligner.audioCells.size()) ?
+			QString::asprintf("%g", m_aligner.audioCells[i].similarity) : "";
 
 		// Статус excluded для каждого столбца
 		bool enExcl = (i < m_aligner.sourceCells.size()) && m_aligner.sourceCells[i].isExcluded;
@@ -329,16 +333,9 @@ bool MainWindow::loadAudioTextFile(const QString& filename)
 {
 	if (filename.isEmpty()) return false;
 
-	QVector<AudioEntry> entries = AudioParser::parseFile(filename);
-
-	if (entries.isEmpty()) {
-		QMessageBox::warning(this, "Error", "No valid entries found in file");
-		return false;
-	}
-
-	m_aligner.loadAudioEntries(entries, filename);
+	m_aligner.loadAudioEntries(filename);
 	statusBar()->showMessage(QString("Loaded %1 audio entries from %2")
-		.arg(entries.size())
+		.arg(m_aligner.audioEntries.size())
 		.arg(QFileInfo(filename).suffix().toUpper()), 3000);
 
 	return true;
@@ -493,7 +490,7 @@ void MainWindow::onDebugInfo()
 		return;
 	}
 
-	QString s = m_aligner.sourceWordsBySentence(row);
+	QString s = QString::asprintf("row %d:", row) + m_aligner.sourceWordsBySentence(row);
 	QMessageBox::information(this, "Info", s);
 }
 
@@ -501,6 +498,12 @@ void MainWindow::onRecalc()
 {
 	m_aligner.calcLexicalSimilarity();
 	syncTableFromAligner();
+}
+
+void MainWindow::onStat()
+{
+	QString s = QString::asprintf("totalSim=%g", m_aligner.totalSim);
+	QMessageBox::information(this, "Statistics", s);
 }
 
 void MainWindow::onTargetAlign()

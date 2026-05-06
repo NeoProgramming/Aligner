@@ -58,11 +58,12 @@ struct AudioSentence : public TextSentence {
 
 	int audioStartMs; // время начала в миллисекундах
 	int audioEndMs;	  // время конца в миллисекундах
-	double score;
+	double similarity;
 
 	void clear() {
 		TextSentence::clear();
 		audioStartMs = audioEndMs = -1;
+		similarity = -1.0;
 	}
 
 	AudioSentence() {

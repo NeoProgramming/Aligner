@@ -22,7 +22,7 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 		
 		// выводим "SOURCE" строку
 		qDebug() << sentStr << "MS=" << maxSrc << debugEnWords(engine, enIdx, maxSrc);
-			
+		
 
 		int bestOffset = -1;
 		double bestScore = 0.0;
@@ -38,7 +38,7 @@ void MyAligner::align(IAlignmentEngine* alignerEngine)
 			// размер аудио окна
 			int maxAud = audioWindowSize(audioIdx + offset, maxSrc);
 
-			MatchResult mr = similarityCG(enIdx, maxSrc, audioIdx + offset, maxAud);
+			MatchResult mr = similarity(enIdx, maxSrc, audioIdx + offset, maxAud);
 
 			// отладка
 			qDebug() << sentStr << QString::asprintf("OFFS=%03d: %.5f", offset, mr.score) << debugAudioWords(engine, audioIdx + offset, maxAud);
@@ -108,202 +108,7 @@ int MyAligner::audioWindowSize(int audioStart, int sourceWindow)
 	return s;
 }
 
-MatchResult MyAligner::similarityDP(int enStart, int audioStart)
-{
-	MatchResult result;
-
-	// 1. Проверяем границы
-	int totalEn = engine->getSourceWordsCount();
-	int totalAudio = engine->getAudioWordsCount();
-
-	if (enStart >= totalEn || audioStart >= totalAudio) {
-		result.score = 0.0;
-		result.usedSource = 0;
-		result.usedAudio = 0;
-		return result;
-	}
-
-	// 2. Определяем реальные размеры окон (не выходим за границы)
-	int enSize = qMin(WINDOW_SIZE, totalEn - enStart);
-	int audioSize = qMin(WINDOW_SIZE, totalAudio - audioStart);
-
-	// 3. Инициализируем таблицу DP большими числами
-	const int INF = 1000;
-	for (int i = 0; i <= enSize; ++i) {
-		for (int j = 0; j <= audioSize; ++j) {
-			DP[i][j] = INF;
-		}
-	}
-
-	// 4. Базовые случаи (нулевая строка и нулевой столбец)
-	DP[0][0] = 0;
-
-	// Превращаем пустое в audio слова (вставки)
-	for (int j = 1; j <= audioSize; ++j) {
-		DP[0][j] = j;  // нужно j вставок
-	}
-
-	// Превращаем en слова в пустое (удаления)
-	for (int i = 1; i <= enSize; ++i) {
-		DP[i][0] = i;  // нужно i удалений
-	}
-
-	// 5. Заполняем таблицу
-	for (int i = 1; i <= enSize; ++i) {
-		for (int j = 1; j <= audioSize; ++j) {
-			// Получаем слова по индексам
-			// engine->getSourceWord(enStart + i - 1) — i-1 потому что в DP i=1 соответствует первому слову
-			QString enWord = engine->getSourceWord(enStart + i - 1);
-			QString audioWord = engine->getAudioWord(audioStart + j - 1);
-
-			// Стоимость замены (0 если слова равны, 1 если разные)
-			//int cost = (enWord == audioWord) ? 0 : 1;
-			int cost = equ(enWord, audioWord) ? 0 : 1;
-
-			// Три варианта:
-			// 1. Замена/совпадение
-			int replaceCost = DP[i - 1][j - 1] + cost;
-
-			// 2. Удаление (слово в en лишнее)
-			int deleteCost = DP[i - 1][j] + 1;
-
-			// 3. Вставка (слово в audio лишнее)
-			int insertCost = DP[i][j - 1] + 1;
-
-			// Берём минимум
-			DP[i][j] = qMin(replaceCost, qMin(deleteCost, insertCost));
-		}
-	}
-
-	// 6. Получаем минимальное расстояние
-	int minDistance = DP[enSize][audioSize];
-	
-	// 7. Вычисляем similarity (от 0 до 1)
-	int maxLength = qMax(enSize, audioSize);
-	if (maxLength > 0) {
-		result.score = 1.0 - (double)minDistance / maxLength;
-	}
-	else {
-		result.score = 1.0;  // обе группы пустые
-	}
-
-	result.usedSource = enSize;
-	result.usedAudio = audioSize;
-
-	return result;
-}
-
-MatchResult MyAligner::similarityDPB(int enStart, int audioStart)
-{
-	MatchResult result;
-
-	int totalEn = engine->getSourceWordsCount();
-	int totalAudio = engine->getAudioWordsCount();
-
-	if (enStart >= totalEn || audioStart >= totalAudio) {
-		result.score = 0.0;
-		result.usedSource = 0;
-		result.usedAudio = 0;
-		return result;
-	}
-
-	int enSize = qMin(WINDOW_SIZE, totalEn - enStart);
-	int audioSize = qMin(WINDOW_SIZE, totalAudio - audioStart);
-
-	// Максимальная допустимая разница в длинах (band width)
-	const int MAX_DIFF = 5;
-
-	// Если разница слишком большая, группы не могут хорошо соответствовать
-	if (abs(enSize - audioSize) > MAX_DIFF) {
-		result.score = 0.0;
-		result.usedSource = enSize;
-		result.usedAudio = audioSize;
-		return result;
-	}
-
-	const int INF = 1000;
-
-	// Инициализируем таблицу
-	for (int i = 0; i <= enSize; ++i) {
-		for (int j = 0; j <= audioSize; ++j) {
-			DP[i][j] = INF;
-		}
-	}
-
-	DP[0][0] = 0;
-
-	// Инициализация границ внутри полосы
-	for (int j = 1; j <= audioSize && j <= MAX_DIFF; ++j) {
-		DP[0][j] = j;
-	}
-
-	for (int i = 1; i <= enSize && i <= MAX_DIFF; ++i) {
-		DP[i][0] = i;
-	}
-
-	// Заполняем только внутри полосы |i - j| <= MAX_DIFF
-	for (int i = 1; i <= enSize; ++i) {
-		int j_start = qMax(1, i - MAX_DIFF);
-		int j_end = qMin(audioSize, i + MAX_DIFF);
-
-		for (int j = j_start; j <= j_end; ++j) {
-			QString enWord = engine->getSourceWord(enStart + i - 1);
-			QString audioWord = engine->getAudioWord(audioStart + j - 1);
-
-			int cost = (enWord == audioWord) ? 0 : 1;
-
-			// Проверяем, что предыдущие клетки существуют
-			int replaceCost = (i - 1 >= 0 && j - 1 >= 0) ? DP[i - 1][j - 1] + cost : INF;
-			int deleteCost = (i - 1 >= 0) ? DP[i - 1][j] + 1 : INF;
-			int insertCost = (j - 1 >= 0) ? DP[i][j - 1] + 1 : INF;
-
-			// Если клетка вне полосы, она INF, так что не повлияет
-			DP[i][j] = qMin(replaceCost, qMin(deleteCost, insertCost));
-		}
-	}
-
-	// Если последняя клетка не заполнена (INF), значит выравнивание невозможно
-	if (DP[enSize][audioSize] >= INF / 2) {
-		result.score = 0.0;
-		result.usedSource = enSize;
-		result.usedAudio = audioSize;
-		return result;
-	}
-
-	int minDistance = DP[enSize][audioSize];
-
-	int maxLength = qMax(enSize, audioSize);
-	if (maxLength > 0) {
-		result.score = 1.0 - (double)minDistance / maxLength;
-	}
-	else {
-		result.score = 1.0;
-	}
-
-	result.usedSource = enSize;
-	result.usedAudio = audioSize;
-
-	return result;
-}
-
-inline double wordSimilarity(const QString& a, const QString& b) {
-
-	return equ(a, b);
-
-	if (a == b) return 1.0;
-	if (a.size() < 3 || b.size() < 3) return 0.0;
-
-	// простая эвристика — общий префикс
-	int common = 0;
-	int len = std::min(a.size(), b.size());
-	for (int i = 0; i < len; ++i) {
-		if (a[i] != b[i]) break;
-		common++;
-	}
-	return double(common) / std::max(a.size(), b.size());
-}
-
-MatchResult MyAligner::similarityCG(int enStart, int maxSrc, int audioStart, int maxAud)
+MatchResult MyAligner::similarity(int enStart, int maxSrc, int audioStart, int maxAud)
 {
 	int srcCount = engine->getSourceWordsCount();
 	int audCount = engine->getAudioWordsCount();
@@ -364,7 +169,7 @@ MatchResult MyAligner::similarityCG(int enStart, int maxSrc, int audioStart, int
 	}
 
 	int bestI = maxSrc;
-	int bestJ = maxAud;//@ WINDOW_SIZE;
+	int bestJ = maxAud;
 
 	double bestScore = -1e9;
 	//@int minAud = std::min(WINDOW_SIZE, maxAud);
@@ -413,144 +218,5 @@ MatchResult MyAligner::similarityCG(int enStart, int maxSrc, int audioStart, int
 	return res;
 }
 
-MatchResult MyAligner::similarityRecursive(int enStart, int audioStart, int currDepth, int minDepth)
-{
-	// Базовый случай: вышли за границы
-	if (enStart >= engine->getSourceWordsCount() || audioStart >= engine->getAudioWordsCount()) {
-		return { 0.0, 0, 0 };
-	}
-
-	// Базовый случай: достигли максимальной глубины
-	if (currDepth <= minDepth) {
-		return { 0.0, 0, 0 };
-	}
-
-	const QString& enWord = engine->getSourceWord(enStart);
-	const QString& audioWord = engine->getAudioWord(audioStart);
-
-	// debug
-	if (audioWord == "1")
-		enStart += 0;
-
-	// Вариант 1: слова совпадают
-	if (enWord == audioWord) {
-		// рекурсивно вызываем для следующей пары слов
-		MatchResult next = similarityRecursive(enStart + 1, audioStart + 1, currDepth - 1, minDepth);
-		// возвращаем результат
-		return { 1.0 + next.score, 1 + next.usedSource, 1 + next.usedAudio };
-	}
-
-	// Вариант 2: пропускаем английское слово
-	MatchResult skipEn = similarityRecursive(enStart + 1, audioStart, currDepth - 1, minDepth);
-	skipEn.score += 0;
-	skipEn.usedSource += 1;
-	skipEn.usedAudio += 0;
-
-	// Вариант 3: пропускаем аудио слово
-	MatchResult skipAudio = similarityRecursive(enStart, audioStart + 1, currDepth - 1, minDepth);
-	skipAudio.score += 0;
-	skipAudio.usedSource += 0;
-	skipAudio.usedAudio += 1;
-
-	// Вариант 4: пропускаем оба слова
-	MatchResult skipBoth = similarityRecursive(enStart + 1, audioStart + 1, currDepth - 1, minDepth);
-	skipBoth.score += 0;
-	skipBoth.usedSource += 1;
-	skipBoth.usedAudio += 1;
 
 
-	// Выбираем лучший вариант (по score)
-	if (skipEn.score >= skipAudio.score  && skipEn.score >= skipBoth.score) {
-		return { skipEn.score , skipEn.usedSource, skipEn.usedAudio };
-	}
-	else if (skipAudio.score >= skipBoth.score) {
-		return { skipAudio.score , skipAudio.usedSource, skipAudio.usedAudio };
-	}
-	else {
-		return { skipBoth.score , skipBoth.usedSource, skipBoth.usedAudio };
-	}
-}
-
-MatchResult MyAligner::similarity3(int enStart, int audioStart, int N)
-{
-	int M = N - 2;// *2 / 3;
-	MatchResult result = similarityRecursive(enStart, audioStart, N, M);
-
-	if (result.usedSource < M || result.usedAudio < M) {
-		return { 0.0, 0, 0 };
-	}
-
-	// нормализуем
-	int m = qMax(result.usedSource, result.usedAudio);
-	if (m == 0)
-		result.score = 0;
-	result.score /= m;
-
-	return result;
-}
-
-double MyAligner::similarity1(int enStart, int audioStart, int N)
-{
-	// Проверка границ
-	if (enStart + N > engine->getSourceWordsCount() || audioStart + N > engine->getAudioWordsCount()) {
-		return 0.0;
-	}
-
-	double totalScore = 0.0;
-
-	// Для каждого английского слова ищем наилучшее совпадение в аудио фрагменте
-	// с учётом позиции (штраф за расстояние)
-	for (int enIdx = 0; enIdx < N; ++enIdx) {
-		const QString& enWord = engine->getSourceWord(enStart + enIdx);
-		if (enWord.isEmpty()) continue;
-
-		double bestWordScore = 0.0;
-		int bestPos = -1;
-
-		// Ищем это слово среди аудио слов в диапазоне
-		for (int audioIdx = 0; audioIdx < N; ++audioIdx) {
-			QString audioWord = engine->getAudioWord(audioStart + audioIdx).toLower();
-
-			if (enWord == audioWord) {
-				// Расстояние в позициях (0 = идеальное совпадение позиции)
-				int distance = abs(enIdx - audioIdx);
-				// Вес: 1.0 для совпадающей позиции, уменьшается с расстоянием
-				double positionWeight = 1.0 / (distance + 1.0);
-				double wordScore = positionWeight;
-
-				if (wordScore > bestWordScore) {
-					bestWordScore = wordScore;
-					bestPos = audioIdx;
-				}
-			}
-		}
-
-		totalScore += bestWordScore;
-	}
-
-	// Нормализуем по длине (максимальный возможный score = N)
-	return totalScore / N;
-}
-
-double MyAligner::similarity2(int enStart, int audioStart, int N)
-{
-	// Проверка границ
-	if (enStart + N > engine->getSourceWordsCount() || audioStart + N > engine->getAudioWordsCount()) {
-		return 0.0;
-	}
-
-	int score = 0;
-
-	for (int i = 0; i < N; ++i) {
-		const QString& enWord = engine->getSourceWord(enStart + i);
-
-		// Очищаем аудио слово от знаков препинания
-		QString audioWord = engine->getAudioWord(audioStart + i).toLower();
-
-		if (enWord == audioWord) {
-			score++;
-		}
-	}
-
-	return (double)score / N;
-}

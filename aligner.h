@@ -61,11 +61,12 @@ public:
 	QHash<QString, QString> m_dictionaryReverse; // английское -> русское (опционально)
 
 	bool modified;
+	double totalSim = 0;
 
 	// Основные операции
 	void loadSourceText(const QString& filename);
 	void loadTargetText(const QString& filename);
-	void loadAudioEntries(const QVector<AudioEntry>& entries, const QString& filename);
+	void loadAudioEntries(const QString& filename);
 	void loadAudioFile(const QString& filename);
 
 	void loadDictionary(const QString& filename);

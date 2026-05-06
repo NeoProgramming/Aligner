@@ -40,9 +40,6 @@
     <ClCompile Include="aligner.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="audio_parser.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="MyAligner.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -58,9 +55,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aligner.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="audio_parser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="alignment.h">

@@ -136,45 +136,21 @@ QString stemEnglish(const QString& word)
 	return result;
 }
 
-bool equ(const QString& word1, const QString& word2)
+double wordSimilarity(const QString& a, const QString& b) 
 {
-	return word1 == word2;
+	if (a == b) return 1.0;
+	if (a.size() < 3 || b.size() < 3) return 0.0;
+
+	// простая эвристика — общий префикс
+	int common = 0;
+	int len = std::min(a.size(), b.size());
+	for (int i = 0; i < len; ++i) {
+		if (a[i] != b[i]) break;
+		common++;
+	}
+	return double(common) / std::max(a.size(), b.size());
 }
 
-bool equ2(const QString& word1, const QString& word2)
-{
-	int i = 0;
-	int len1 = word1.length();
-	int len2 = word2.length();
-
-	while (i < len1 && i < len2) {
-		QChar c1 = word1[i];
-		QChar c2 = word2[i];
-
-		// Если в любой из строк встретили '~' - дальше не сравниваем
-		if (c1 == '~' || c2 == '~') {
-			break;
-		}
-
-		// Если символы не совпадают - строки разные
-		if (c1 != c2) {
-			return false;
-		}
-
-		i++;
-	}
-
-	// Если одна строка закончилась, а в другой на этой позиции не '~'
-	if (i < len1) {
-		return word1[i] == '~';
-	}
-	if (i < len2) {
-		return word2[i] == '~';
-	}
-
-	// Обе строки закончились одновременно
-	return true;
-}
 
 QStringList tokenizeWords(const QString& text)
 {
@@ -224,6 +200,8 @@ void saveToFile(const QString& filename, const QString& content)
 
 double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& targetSentence)
 {
+	// проверочная функция - оценка похожести предложений
+
 	if (sourceSentence.isEmpty() && targetSentence.isEmpty()) {
 		return 1.0;
 	}
@@ -232,8 +210,8 @@ double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QSt
 		return 0.0;
 	}
 
-	QStringList sourceWords = sourceSentence.split(' ', Qt::SkipEmptyParts);
-	QStringList targetWords = targetSentence.split(' ', Qt::SkipEmptyParts);
+	QStringList sourceWords = tokenizeWords(sourceSentence);
+	QStringList targetWords = tokenizeWords(targetSentence);
 
 	// Считаем совпадения слов (позиция не важна)
 	QMap<QString, int> sourceCount;

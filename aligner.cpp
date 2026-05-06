@@ -7,6 +7,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 #include "tools.h"
 #include "MyAligner.h"
@@ -366,10 +369,90 @@ void Aligner::loadTargetText(const QString& filename)
 	modified = true;
 }
 
-void Aligner::loadAudioEntries(const QVector<AudioEntry>& entries, const QString& filename)
+void Aligner::loadAudioEntries(const QString& filename)
 {
-	audioEntries = entries;
 	currentAudioTextFile = filename;
+	//audioEntries = entries;
+	audioEntries.clear();
+
+	QFile file(filename);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+		qWarning() << "Cannot open JSON file:" << filename;
+		return;
+	}
+
+	QByteArray jsonData = file.readAll();
+	file.close();
+
+	QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+	if (doc.isNull()) {
+		qWarning() << "Invalid JSON:" << filename;
+		return;
+	}
+
+	if (!doc.isObject()) {
+		qWarning() << "JSON root is not an object";
+		return;
+	}
+
+	QJsonObject root = doc.object();
+
+	// Ищем массив segments
+	if (!root.contains("segments")) {
+		qWarning() << "JSON does not contain 'segments' array";
+		return;
+	}
+
+	QJsonArray segments = root["segments"].toArray();
+
+	// Проходим по всем сегментам
+	for (const QJsonValue& segVal : segments) {
+		if (!segVal.isObject()) continue;
+
+		QJsonObject segment = segVal.toObject();
+
+		// Проверяем наличие массива words
+		if (!segment.contains("words")) continue;
+
+		QJsonArray words = segment["words"].toArray();
+
+		// Проходим по всем словам в сегменте
+		for (const QJsonValue& wordVal : words) {
+			if (!wordVal.isObject()) continue;
+
+			QJsonObject wordObj = wordVal.toObject();
+
+			AudioEntry entry;
+
+			// Извлекаем слово
+			entry.text = wordObj["word"].toString().trimmed();
+			if (entry.text.isEmpty()) continue;
+
+			//entry.text.remove(QRegularExpression("[\\p{P}]"));  // удаляем всю пунктуацию
+			entry.text.remove(QRegularExpression("[^\\w\\s']"));
+			entry.text = entry.text.toLower();
+
+			// Извлекаем время (Whisper даёт в секундах с плавающей точкой)
+			double startSec = wordObj["start"].toDouble(-1.0);
+			double endSec = wordObj["end"].toDouble(-1.0);
+
+			if (startSec >= 0 && endSec >= 0) {
+				entry.startMs = qRound(startSec * 1000.0);
+				entry.endMs = qRound(endSec * 1000.0);
+			}
+			else {
+				entry.startMs = -1;
+				entry.endMs = -1;
+			}
+
+			// probability пока игнорируем
+
+			audioEntries.append(entry);
+		}
+	}
+
+	qDebug() << "Parsed" << audioEntries.size() << "words from Whisper JSON";
+		
 	modified = true;
 }
 
@@ -426,10 +509,10 @@ void Aligner::calcLexicalSimilarity()
 		QString enText = sourceCells[i].text;
 		QString ruText = (i < targetCells.size()) ? targetCells[i].text : "";
 
-		double score = 0.0;
+		double similarity = 0.0;
 
 		if (!enText.isEmpty() && !ruText.isEmpty() && !m_dictionary.isEmpty()) {
-			score = lexicalSimilarity(enText, ruText);
+			similarity = lexicalSimilarity(enText, ruText);
 		}
 
 		// Сохраняем результат в аудио столбец
@@ -441,7 +524,7 @@ void Aligner::calcLexicalSimilarity()
 			scoreCell.text = "no ru";
 		}
 		else {
-			scoreCell.text = QString("sim: %1%").arg(qRound(score * 100));
+			scoreCell.text = QString("sim: %1%").arg(qRound(similarity * 100));
 		}
 		scoreCell.isExcluded = false;
 		audioCells.append(scoreCell);
@@ -902,7 +985,7 @@ void Aligner::insertSentence(const QStringList &currentWords, int currentSentenc
 	}
 
 	// оцениваем похожесть
-	audioCells[currentSentenceIdx].score = evaluateSentenceSimilaritySimple(audioCells[currentSentenceIdx].text, sourceCells[currentSentenceIdx].text);
+	audioCells[currentSentenceIdx].similarity = evaluateSentenceSimilaritySimple(audioCells[currentSentenceIdx].text, sourceCells[currentSentenceIdx].text);
 }
 
 void Aligner::rebuildAudioSentences()
@@ -956,6 +1039,18 @@ void Aligner::rebuildAudioSentences()
 	if (!currentWords.isEmpty()) {
 		insertSentence(currentWords, currentSentenceIdx, currentIsIns, currentStartMs, currentEndMs);
 	}
+
+	// сумма всех пложительных коэффициентов
+	totalSim = 0;
+	int n = 0;
+	for (const AudioSentence& a : audioCells) {
+		if (a.similarity >= 0) {
+			totalSim += a.similarity;
+			n++;
+		}
+	}
+	if (n > 0)
+		totalSim /= n;
 }
 
 

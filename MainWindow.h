@@ -49,6 +49,7 @@ private slots:
 	void onTargetAlign();
 	void onAudioAlign();
 	void onRecalc();
+	void onStat();
 
 	void onSplitAudio();
 	void onGenerateAudio();

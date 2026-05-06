@@ -11,8 +11,7 @@ QString msToTimeFormat(int ms);
 QString stemRussian(const QString& word);
 QString stemEnglish(const QString& word);
 
-bool equ(const QString& word1, const QString& word2);
-bool equ2(const QString& word1, const QString& word2);
+double wordSimilarity(const QString& a, const QString& b);
 
 QStringList tokenizeWords(const QString& text);
 void saveToFile(const QString& filename, const QString& content);

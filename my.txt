@@ -28,3 +28,28 @@
 и затем можно сгенерировать чисто для отображения простым проходом
 
 getSourceWord и setAudioWord - не очень понятно при достижении конца, какой там индекс возвращать
+----
+i’m going to go to my room harry announced
+i'm going to       my room harry announced his voice
+
+то есть система решила взять два лишних слова вместо того чтобы не брать их
+
+что внутри:
+"S=106" MS= 34 "                 EN W=1307 
+i'm going to go to my room harry announced his voice trembled a little please try not to fight too much about this mum dad we'll know soon enough how it comes out right"
+
+"S=106" "OFFS=000: 0.89804" "AU W=1409 
+
+i'm going to my room harry announced his voice trembled a little please try not to fight too much about this mom dad we'll know soon enough how it comes out right of course harry said his father and his mother gave him a"
+
+"S=106" "OFFS=001: 0.85686" "AU W=1410 
+
+going to my room harry announced his voice trembled a little please try not to fight too much about this mom dad we'll know soon enough how it comes out right of course harry said his father and his mother gave him a reassuring"
+
+MATCH! BestOffset= 0 UsedSrc= 34 UsedAudio= 32
+
+выбор правильный; неправильная разбивка групп на предложения.
+
+
+
+

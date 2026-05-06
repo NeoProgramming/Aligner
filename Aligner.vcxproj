@@ -95,7 +95,6 @@
     <QtRcc Include="MainWindow.qrc" />
     <QtMoc Include="MainWindow.h" />
     <ClCompile Include="aligner.cpp" />
-    <ClCompile Include="audio_parser.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
@@ -103,7 +102,6 @@
     <ClInclude Include="aligner.h" />
     <ClInclude Include="alignment.h" />
     <QtMoc Include="AudioEntriesViewer.h" />
-    <ClInclude Include="audio_parser.h" />
     <ClInclude Include="MyAligner.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="tools.h" />
