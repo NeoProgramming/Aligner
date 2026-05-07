@@ -725,11 +725,11 @@ void Aligner::loadDictionary(const QString& filename)
 		QStringList parts = line.split('=');
 		if (parts.size() >= 2) {
 			QString source = parts[0].trimmed();
-			QString transl = parts[1].trimmed();
+			QString trans = parts[1].trimmed();
 
-			if (!source.isEmpty() && !transl.isEmpty()) {
-				m_dictionary[transl] = source;
-				m_dictionaryReverse[source] = transl;
+			if (!source.isEmpty() && !trans.isEmpty()) {
+				m_dictionary[trans] = source;
+				m_dictionaryReverse[source] = trans;
 				lineCount++;
 			}
 		}
@@ -835,7 +835,7 @@ bool Aligner::saveProjectTxt(const QString& filename)
 
 		// Экранирование спецсимволов? Можно не делать, если доверяем данным
 		stream << "source: " << src << "\n";
-		stream << "transl: " << trans << "\n";
+		stream << "trans: " << trans << "\n";
 		stream << "audio: " << audio << "\n";
 		stream << "src_excl: " << (srcExcl ? "true" : "false") << "\n";
 		stream << "trans_excl: " << (transExcl ? "true" : "false") << "\n";
@@ -1307,9 +1307,10 @@ void Aligner::alignAudioToSource()
 	
 	alignAudio();	
 
-	// Синхронизация: вставляем пустые source/transl
 	normalizeRowCount();
 	rebuildAudioSentences();
+
+	calcAudioSimilarity();
 
 	modified = true;
 }
