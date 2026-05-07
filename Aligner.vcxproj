@@ -89,7 +89,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AudioEntriesViewer.cpp" />
-    <ClCompile Include="MyAligner.cpp" />
     <ClCompile Include="Settings.cpp" />
     <ClCompile Include="tools.cpp" />
     <QtRcc Include="MainWindow.qrc" />
@@ -102,7 +101,6 @@
     <ClInclude Include="aligner.h" />
     <ClInclude Include="alignment.h" />
     <QtMoc Include="AudioEntriesViewer.h" />
-    <ClInclude Include="MyAligner.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="tools.h" />
   </ItemGroup>

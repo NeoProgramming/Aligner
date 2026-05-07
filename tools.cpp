@@ -3,6 +3,8 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include <QSet>
+#include <QRegularExpression>
 
 // aligner.cpp
 QString debugEnWords(IAlignmentEngine *engine, int start, int count)
@@ -198,20 +200,20 @@ void saveToFile(const QString& filename, const QString& content)
 	}
 }
 
-double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& targetSentence)
+double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& translatedSentence)
 {
 	// проверочная функция - оценка похожести предложений
 
-	if (sourceSentence.isEmpty() && targetSentence.isEmpty()) {
+	if (sourceSentence.isEmpty() && translatedSentence.isEmpty()) {
 		return 1.0;
 	}
 
-	if (sourceSentence.isEmpty() || targetSentence.isEmpty()) {
+	if (sourceSentence.isEmpty() || translatedSentence.isEmpty()) {
 		return 0.0;
 	}
 
 	QStringList sourceWords = tokenizeWords(sourceSentence);
-	QStringList targetWords = tokenizeWords(targetSentence);
+	QStringList targetWords = tokenizeWords(translatedSentence);
 
 	// Считаем совпадения слов (позиция не важна)
 	QMap<QString, int> sourceCount;
@@ -237,4 +239,40 @@ double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QSt
 	double f1 = 2 * (precision * recall) / (precision + recall);
 
 	return f1;
+}
+
+double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords)
+{
+	if (enWords.isEmpty() || audioWords.isEmpty()) return 0.0;
+
+	QSet<QString> enSet;
+	for (const QString& w : enWords) {
+		enSet.insert(w.toLower());
+	}
+
+	int score = 0;
+	int total = enWords.size();
+
+	// Проходим по аудио словам, ищем совпадения
+	for (const QString& audioWord : audioWords) {
+		QString word = audioWord.toLower();
+		// Удаляем знаки пунктуации из аудио слова
+		word.remove(QRegularExpression("[\\p{P}]"));
+
+		if (enSet.contains(word)) {
+			score++;
+		}
+	}
+
+	// Штраф за слишком длинное аудио
+	double lengthPenalty = 1.0;
+	if (audioWords.size() > enWords.size() * 1.5) {
+		lengthPenalty = 0.7;
+	}
+	else if (audioWords.size() > enWords.size() * 2) {
+		lengthPenalty = 0.5;
+	}
+
+	double dscore = (double)score / total;
+	return dscore * lengthPenalty;
 }

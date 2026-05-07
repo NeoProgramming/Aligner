@@ -16,4 +16,5 @@ double wordSimilarity(const QString& a, const QString& b);
 QStringList tokenizeWords(const QString& text);
 void saveToFile(const QString& filename, const QString& content);
 
-double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& targetSentence);
+double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& transSentence);
+double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords);

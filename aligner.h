@@ -6,18 +6,9 @@
 #include "alignment.h"
 
 
-
-struct AlignmentPair {
-	QString targetText;
-	QString sourceText;
-	double confidence;
-	QVector<int> targetIndices;
-	QVector<int> sourceIndices;
-};
-
-
 class Aligner : public IAlignmentEngine
 {
+	static const int WINDOW_SIZE = 16;
 public:
 	// Реализация IAlignmentEngine
 	int getSourceWordsCount() const override;
@@ -28,8 +19,15 @@ public:
 	int  getSourceSentence(int index) const override;
 	void setAudioSentence(int index, int sentidx, bool ins) override;
 
-	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount) override;
+	void assignMatchedGroup(int sourceStart, int sourceCount, int audioStart, int audioCount, QVector<PathStep> &path) override;
 	void flushPendingGroup(int sourceIndex, int audioStart, int audioCount) override;
+
+	void assignMatchedGroupNaive(int sourceStart, int sourceCount, int audioStart, int audioCount);
+
+	void alignAudio();
+	int sourceWindowSize(int srcStart);
+	int audioWindowSize(int audioStart, int sourceWindow);
+	MatchResult similarity(int enStart, int maxSrc, int audioStart, int maxAud);
 public:
 	Aligner();
 
@@ -37,7 +35,7 @@ public:
 	bool loadProjectTxt(const QString& filename);
 
 	void clearSource();
-	void clearTarget();
+	void clearTranslated();
 	void clearAudio();
 	
 	// Данные (публичные поля для простоты)
@@ -46,14 +44,14 @@ public:
 
 	 // Независимые массивы для каждого столбца
 	QVector<TextSentence> sourceCells;      // оригинальный текст
-	QVector<TextSentence> targetCells;      // переведенный текст
+	QVector<TextSentence> translatedCells;  // переведенный текст
 	QVector<AudioSentence> audioCells;		// аудио текст (с таймкодами и отладочной информацией)
 	
 	QVector<AudioEntry> audioEntries;
 	QVector<SourceWord> sourceWordsCache;
 	
 	QString currentSourceFile;
-	QString currentTargetFile;
+	QString currentTranslatedFile;
 	QString currentAudioTextFile;
 	QString currentAudioFile;
 
@@ -61,11 +59,11 @@ public:
 	QHash<QString, QString> m_dictionaryReverse; // английское -> русское (опционально)
 
 	bool modified;
-	double totalSim = 0;
+	double totalAudioSim = 0;
 
 	// Основные операции
 	void loadSourceText(const QString& filename);
-	void loadTargetText(const QString& filename);
+	void loadTranslatedText(const QString& filename);
 	void loadAudioEntries(const QString& filename);
 	void loadAudioFile(const QString& filename);
 
@@ -73,7 +71,8 @@ public:
 	
 	double lexicalSimilarity(const QString& enSentence, const QString& ruSentence);
 
-	void calcLexicalSimilarity();
+	void calcTranslatedSimilarity();
+	void calcAudioSimilarity();
 
 	// Обновить кэш после изменений
 	void rebuildSourceWordsCache();
@@ -90,7 +89,7 @@ public:
 	void setCellText(int row, int column, const QString& text);
 
 	// Выравнивание
-	void alignTargetToSource();
+	void alignTranslatedToSource();
 	void alignAudioToSource();
 
 	bool splitAudioToMp3(const QString &ffmpegPath);
@@ -101,10 +100,5 @@ public:
 	// Вспомогательные
 	int rowCount() const;
 	void clear();
-
-	QString sourceWordsBySentence(int i);
-
-private:
-	double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords);
 };
 

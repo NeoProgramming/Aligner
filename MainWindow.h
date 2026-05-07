@@ -11,6 +11,12 @@ class QCloseEvent;
 class QResizeEvent;
 class AudioEntriesViewer;
 
+enum class InfoMode {
+	AudioSim,
+	TransSim,
+	Times
+};
+
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
@@ -22,7 +28,7 @@ public:
 private slots:
 	// File menu
 	void onLoadSource();
-	void onLoadTarget();
+	void onLoadTranslated();
 	void onLoadAudioText();
 	void onLoadAudioFile();
 	
@@ -41,12 +47,12 @@ private slots:
 	void onDebugInfo();
 
 	void onClearSource();
-	void onClearTarget();
+	void onClearTranslated();
 	void onClearAudio();
 	void onNormalizeRows();
 
 	// Tools menu
-	void onTargetAlign();
+	void onTranslatedAlign();
 	void onAudioAlign();
 	void onRecalc();
 	void onStat();
@@ -74,17 +80,16 @@ private:
 	void createMenuBar();
 	void createToolBar();
 	void createStatusBar();
+
 	void splitRowAtPosition(int row, int col, int cursorPos);
 
-	// UI sync
-	void syncTableFromAligner();
-	void syncAlignerFromTable();
+	void syncTableFromAligner();	
 	void updateRowHeights();
 	void setModified(bool modified);
 	void updateCell(int row, int column, const QString& text, const QColor& bgColor);
-
 	void showAudioEntriesViewer();
 
+	InfoMode m_imode = InfoMode::AudioSim;
 	Settings cfg;
 	Aligner m_aligner;
 	QTableWidget* m_table;

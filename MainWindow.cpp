@@ -127,9 +127,9 @@ void MainWindow::setupTableProperties()
 
 void MainWindow::createMenuBar()
 {
-	QMenu* fileMenu = menuBar()->addMenu("&File");
+	QMenu* fileMenu = menuBar()->addMenu("File");
 	fileMenu->addAction("Load Source Text", this, &MainWindow::onLoadSource);
-	fileMenu->addAction("Load Target Text", this, &MainWindow::onLoadTarget);
+	fileMenu->addAction("Load Translated Text", this, &MainWindow::onLoadTranslated);
 	fileMenu->addAction("Load Audio Text (SRT/JSON)", this, &MainWindow::onLoadAudioText);
 	fileMenu->addAction("Load Audio File (MP3)", this, &MainWindow::onLoadAudioFile);
 	fileMenu->addSeparator();
@@ -140,7 +140,7 @@ void MainWindow::createMenuBar()
 	fileMenu->addSeparator();
 	fileMenu->addAction("Exit", this, &MainWindow::onExit, QKeySequence::Quit);
 
-	QMenu* editMenu = menuBar()->addMenu("&Edit");
+	QMenu* editMenu = menuBar()->addMenu("Edit");
 	editMenu->addAction("Split Cell", this, &MainWindow::onSplitCell, QKeySequence(Qt::CTRL + Qt::Key_T));
 	editMenu->addAction("Merge with Previous", this, &MainWindow::onMergeWithPrevious, QKeySequence(Qt::CTRL + Qt::Key_Up));
 	editMenu->addAction("Merge with Next", this, &MainWindow::onMergeWithNext, QKeySequence(Qt::CTRL + Qt::Key_Down));
@@ -150,15 +150,19 @@ void MainWindow::createMenuBar()
 	editMenu->addAction("Merge all with Next", this, &MainWindow::onMergeAllWithNext);
 	editMenu->addSeparator();
 	editMenu->addAction("Clear Source", this, &MainWindow::onClearSource);
-	editMenu->addAction("Clear Target", this, &MainWindow::onClearTarget);
+	editMenu->addAction("Clear Translated", this, &MainWindow::onClearTranslated);
 	editMenu->addAction("Clear Audio", this, &MainWindow::onClearAudio);
 	editMenu->addAction("Normalize rows", this, &MainWindow::onNormalizeRows);
 
+	QMenu* viewMenu = menuBar()->addMenu("View");
+	viewMenu->addAction("Audio sim", this, [this]() { m_imode = InfoMode::AudioSim; syncTableFromAligner(); });
+	viewMenu->addAction("Translated sim", this, [this]() { m_imode = InfoMode::TransSim; syncTableFromAligner(); });
+	viewMenu->addAction("Times", this, [this]() { m_imode = InfoMode::Times; syncTableFromAligner(); });
 
-	QMenu* toolsMenu = menuBar()->addMenu("&Tools");
-	toolsMenu->addAction("Target align", this, &MainWindow::onTargetAlign);
+	QMenu* toolsMenu = menuBar()->addMenu("Tools");
+	toolsMenu->addAction("Translated align", this, &MainWindow::onTranslatedAlign);
 	toolsMenu->addAction("Audio align", this, &MainWindow::onAudioAlign);
-	toolsMenu->addAction("Recalc", this, &MainWindow::onRecalc);
+	toolsMenu->addAction("Recalc statistics", this, &MainWindow::onRecalc);
 	
 	toolsMenu->addSeparator();
 	toolsMenu->addAction("Split MP3 by Rows", this, &MainWindow::onSplitAudio);
@@ -172,10 +176,10 @@ void MainWindow::createToolBar()
 	QToolBar* toolbar = addToolBar("Main");
 	toolbar->addAction("Load Project", this, &MainWindow::onLoadProject);
 	toolbar->addAction("Load Source", this, &MainWindow::onLoadSource);
-	toolbar->addAction("Load Target", this, &MainWindow::onLoadTarget);
+	toolbar->addAction("Load Translated", this, &MainWindow::onLoadTranslated);
 	toolbar->addAction("Load Audio Text", this, &MainWindow::onLoadAudioText);
 	toolbar->addSeparator();
-	toolbar->addAction("Target align", this, &MainWindow::onTargetAlign);
+	toolbar->addAction("Translated align", this, &MainWindow::onTranslatedAlign);
 	toolbar->addAction("Audio align", this, &MainWindow::onAudioAlign);
 	
 	toolbar->addSeparator();
@@ -200,9 +204,9 @@ void MainWindow::onClearSource()
 	syncTableFromAligner();
 }
 
-void MainWindow::onClearTarget()
+void MainWindow::onClearTranslated()
 {
-	m_aligner.clearTarget();
+	m_aligner.clearTranslated();
 	syncTableFromAligner();
 }
 
@@ -218,40 +222,52 @@ void MainWindow::onNormalizeRows()
 	syncTableFromAligner();
 }
 
+
 void MainWindow::syncTableFromAligner()
 {
 	int rows = m_aligner.rowCount();
 	m_table->setRowCount(rows);
 
+	// Настройка вертикальных заголовков (номера строк с 0)
+	for (int i = 0; i < rows; ++i) {
+		QTableWidgetItem* headerItem = new QTableWidgetItem(QString::number(i));
+		m_table->setVerticalHeaderItem(i, headerItem);
+	}
+
 	for (int i = 0; i < rows; ++i) {
 		// Получаем текст для каждого столбца
-		QString enText = (i < m_aligner.sourceCells.size()) ? m_aligner.sourceCells[i].text : "";
-		QString ruText = (i < m_aligner.targetCells.size()) ? m_aligner.targetCells[i].text : "";
-		QString audioText = (i < m_aligner.audioCells.size()) ? m_aligner.audioCells[i].text : "";
-	//	QString infoText = (i < m_aligner.audioCells.size()) ? 
-	//		QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
-	//		(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0) : "";
+		QString sourceText = (i < m_aligner.sourceCells.size()) ? m_aligner.sourceCells[i].text : "";
+		QString translText = (i < m_aligner.translatedCells.size()) ? m_aligner.translatedCells[i].text : "";
+		QString audioText  = m_aligner.audioCells[i].text;
 
-		QString infoText = (i < m_aligner.audioCells.size()) ?
-			QString::asprintf("%g", m_aligner.audioCells[i].similarity) : "";
+		QString infoText; 
+		if(m_imode == InfoMode::AudioSim)
+			infoText = QString::asprintf("%g", m_aligner.audioCells[i].audioSim);
+		else if(m_imode == InfoMode::TransSim)
+			infoText = QString::asprintf("%g", m_aligner.audioCells[i].transSim);
+		else if(m_imode == InfoMode::Times)
+			infoText = QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
+				(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0);
+
+		
 
 		// Статус excluded для каждого столбца
-		bool enExcl = (i < m_aligner.sourceCells.size()) && m_aligner.sourceCells[i].isExcluded;
-		bool ruExcl = (i < m_aligner.targetCells.size()) && m_aligner.targetCells[i].isExcluded;
+		bool sourceExcl = (i < m_aligner.sourceCells.size()) && m_aligner.sourceCells[i].isExcluded;
+		bool translExcl = (i < m_aligner.translatedCells.size()) && m_aligner.translatedCells[i].isExcluded;
 		bool audioExcl = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isExcluded;
 		bool audioErr = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isError;
 
 		// Цвета фона
-		QColor enBg = enExcl ? Qt::lightGray : Qt::white;
-		QColor ruBg = ruExcl ? Qt::lightGray : Qt::white;
+		QColor sourceBg = sourceExcl ? Qt::lightGray : Qt::white;
+		QColor targetBg = translExcl ? Qt::lightGray : Qt::white;
 		QColor audioBg = 
 			audioErr ? Qt::red :
 			audioExcl ? Qt::lightGray : Qt::white;
 		QColor infoBg = Qt::lightGray;  // Отладочный столбец всегда серый
 
 		// Обновляем ячейки с правильным приведением типов
-		updateCell(i, 0, enText, enBg);
-		updateCell(i, 1, ruText, ruBg);
+		updateCell(i, 0, sourceText, sourceBg);
+		updateCell(i, 1, translText, targetBg);
 		updateCell(i, 2, audioText, audioBg);
 		updateCell(i, 3, infoText, infoBg);
 	}
@@ -272,24 +288,6 @@ void MainWindow::updateCell(int row, int column, const QString& text, const QCol
 	}
 	item->setText(text);
 	item->setBackground(bgColor);
-}
-
-void MainWindow::syncAlignerFromTable()
-{
-	int rows = m_table->rowCount();
-
-	// Расширяем массивы если нужно
-	while (m_aligner.sourceCells.size() < rows) m_aligner.sourceCells.append(TextSentence());
-	while (m_aligner.targetCells.size() < rows) m_aligner.targetCells.append(TextSentence());
-	while (m_aligner.audioCells.size() < rows) m_aligner.audioCells.append(AudioSentence());
-
-	for (int i = 0; i < rows; ++i) {
-		if (m_table->item(i, 0)) m_aligner.sourceCells[i].text = m_table->item(i, 0)->text();
-		if (m_table->item(i, 1)) m_aligner.targetCells[i].text = m_table->item(i, 1)->text();
-		if (m_table->item(i, 2)) m_aligner.audioCells[i].text = m_table->item(i, 2)->text();
-	}
-
-	m_aligner.modified = true;
 }
 
 void MainWindow::updateRowHeights()
@@ -319,14 +317,14 @@ void MainWindow::onLoadSource()
 	statusBar()->showMessage(QString("Loaded %1 sentences").arg(m_aligner.rowCount()), 3000);
 }
 
-void MainWindow::onLoadTarget()
+void MainWindow::onLoadTranslated()
 {
 	QString filename = QFileDialog::getOpenFileName(this, "Load Target Text",
 		QString(), "Text files (*.txt);;All files (*.*)");
 	if (filename.isEmpty()) return;
 
-	m_aligner.loadTargetText(filename);
-	statusBar()->showMessage("Target text loaded. Use Target align to match with Source", 3000);
+	m_aligner.loadTranslatedText(filename);
+	statusBar()->showMessage("Translated text loaded. Use Target align to match with Source", 3000);
 }
 
 bool MainWindow::loadAudioTextFile(const QString& filename)
@@ -401,7 +399,7 @@ void MainWindow::onMergeWithPrevious()
 	syncTableFromAligner();
 	setModified(true);
 
-	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Target" : "Audio";
+	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Translated" : "Audio";
 	statusBar()->showMessage(QString("Merged %1 column").arg(columnName), 2000);
 }
 
@@ -424,7 +422,7 @@ void MainWindow::onMergeWithNext()
 	syncTableFromAligner();
 	setModified(true);
 
-	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Target" : "Audio";
+	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Translated" : "Audio";
 	statusBar()->showMessage(QString("Merged %1 column").arg(columnName), 2000);
 }
 
@@ -474,7 +472,7 @@ void MainWindow::onExcludeRow()
 	syncTableFromAligner();
 	setModified(true);
 
-	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Target" : "Audio";
+	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Translated" : "Audio";
 	statusBar()->showMessage(QString("Cell in %1 column %2").arg(columnName)
 		.arg(m_aligner.sourceCells[row].isExcluded ? "excluded" : "included"), 2000);
 }
@@ -490,38 +488,39 @@ void MainWindow::onDebugInfo()
 		return;
 	}
 
-	QString s = QString::asprintf("row %d:", row) + m_aligner.sourceWordsBySentence(row);
+	QString s = QString::asprintf("row %d:", row);
 	QMessageBox::information(this, "Info", s);
 }
 
 void MainWindow::onRecalc()
 {
-	m_aligner.calcLexicalSimilarity();
+	m_aligner.calcTranslatedSimilarity();
+	m_aligner.calcTranslatedSimilarity();
 	syncTableFromAligner();
 }
 
 void MainWindow::onStat()
 {
-	QString s = QString::asprintf("totalSim=%g", m_aligner.totalSim);
+	QString s = QString::asprintf("totalAudioSim=%g", m_aligner.totalAudioSim);
 	QMessageBox::information(this, "Statistics", s);
 }
 
-void MainWindow::onTargetAlign()
+void MainWindow::onTranslatedAlign()
 {
 	if (m_aligner.rowCount()==0) {
 		QMessageBox::warning(this, "Error", "Load Source text first");
 		return;
 	}
 
-	if (m_aligner.currentTargetFile.isEmpty()) {
+	if (m_aligner.currentTranslatedFile.isEmpty()) {
 		QMessageBox::warning(this, "Error", "Load Target text first");
 		return;
 	}
 
-	m_aligner.alignTargetToSource();
+	m_aligner.alignTranslatedToSource();
 	syncTableFromAligner();
 	setModified(true);
-	statusBar()->showMessage("Target alignment completed", 3000);
+	statusBar()->showMessage("Translated alignment completed", 3000);
 }
 
 void MainWindow::onAudioAlign()
@@ -660,7 +659,7 @@ void MainWindow::onEditCell()
 			QString newText = textEdit->toPlainText();
 			if (newText != originalText) {
 				if (col == 0) m_aligner.sourceCells[row].text = newText;
-				if (col == 1) m_aligner.targetCells[row].text = newText;
+				if (col == 1) m_aligner.translatedCells[row].text = newText;
 				if (col == 2) m_aligner.audioCells[row].text = newText;
 			}
 			
@@ -678,7 +677,7 @@ void MainWindow::onEditCell()
 		if (newText != originalText) {
 			item->setText(newText);
 			if (col == 0) m_aligner.sourceCells[row].text = newText;
-			if (col == 1) m_aligner.targetCells[row].text = newText;
+			if (col == 1) m_aligner.translatedCells[row].text = newText;
 			if (col == 2) m_aligner.audioCells[row].text = newText;
 			m_aligner.modified = true;
 			setModified(true);
