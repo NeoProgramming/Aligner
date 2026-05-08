@@ -909,18 +909,22 @@ bool Aligner::loadProjectTxt(const QString& filename)
 
 		// Пропускаем комментарии
 		if (line.startsWith("#")) {
+			int colonPos = line.indexOf(':');
+			if (colonPos == -1) continue;
+			QString value = line.mid(colonPos + 1).trimmed();
+
 			// Парсим пути к файлам из заголовка
 			if (line.startsWith("# Source: ")) {
-				currentSourceFile = line.mid(10).trimmed();
+				currentSourceFile = value;
 			}
 			else if (line.startsWith("# Translated: ")) {
-				currentTranslatedFile = line.mid(10).trimmed();
+				currentTranslatedFile = value;
 			}
 			else if (line.startsWith("# AudioText: ")) {
-				currentAudioTextFile = line.mid(12).trimmed();
+				currentAudioTextFile = value;
 			}
 			else if (line.startsWith("# AudioFile: ")) {
-				currentAudioFile = line.mid(12).trimmed();
+				currentAudioFile = value;
 			}
 			continue;
 		}
