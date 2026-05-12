@@ -19,6 +19,7 @@
 #include <QCloseEvent>
 #include <QResizeEvent>
 #include <QDebug>
+#include <QInputDialog>
 #include "tools.h"
 #include "AudioEntriesViewer.h"
 
@@ -148,6 +149,9 @@ void MainWindow::createMenuBar()
 	editMenu->addSeparator();
 	editMenu->addAction("Merge all with Previous", this, &MainWindow::onMergeAllWithPrevious);
 	editMenu->addAction("Merge all with Next", this, &MainWindow::onMergeAllWithNext);
+	editMenu->addSeparator();
+	editMenu->addAction("Move audio to previous sentence", this, &MainWindow::onMoveAudioWordsToPrev);
+	editMenu->addAction("Move audio to next sentence", this, &MainWindow::onMoveAudioWordsToNext);
 	editMenu->addSeparator();
 	editMenu->addAction("Clear Source", this, &MainWindow::onClearSource);
 	editMenu->addAction("Clear Translated", this, &MainWindow::onClearTranslated);
@@ -585,15 +589,26 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	if (!index.isValid()) return;
 
 	QMenu menu;
-	menu.addAction("Edit", this, &MainWindow::onEditCell);
-	menu.addSeparator();
-	menu.addAction("Split", this, &MainWindow::onSplitCell);
-	menu.addAction("Merge with previous", this, &MainWindow::onMergeWithPrevious);
-	menu.addAction("Merge with next", this, &MainWindow::onMergeWithNext);
-	menu.addSeparator();
+	
+	// Добавляем действия для аудио-колонки
+	if (index.column() == 2) {
+		menu.addAction("Move words to previous sentence", this, &MainWindow::onMoveAudioWordsToPrev);
+		menu.addAction("Move words to next sentence", this, &MainWindow::onMoveAudioWordsToNext);
+		menu.addSeparator();
+	}
+	else {
+		menu.addAction("Edit", this, &MainWindow::onEditCell);
+		menu.addSeparator();
+		menu.addAction("Split", this, &MainWindow::onSplitCell);
+		menu.addAction("Merge with previous", this, &MainWindow::onMergeWithPrevious);
+		menu.addAction("Merge with next", this, &MainWindow::onMergeWithNext);
+		menu.addSeparator();
+	}
+
 	menu.addAction("Merge all with previous", this, &MainWindow::onMergeAllWithPrevious);
 	menu.addAction("Merge all with next", this, &MainWindow::onMergeAllWithNext);
 	menu.addSeparator();
+
 	menu.addAction("Exclude", this, &MainWindow::onExcludeRow);
 	menu.addSeparator();
 	menu.addAction("Copy", [this]() {
@@ -822,5 +837,56 @@ void MainWindow::onNewProject()
 	syncTableFromAligner();
 	setModified(false);
 	statusBar()->showMessage("New project created", 3000);
+}
+
+void MainWindow::onMoveAudioWordsToPrev()
+{
+	int row = m_table->currentRow();
+	if (row <= 0) {
+		QMessageBox::information(this, "Info", "Cannot move to previous (first row)");
+		return;
+	}
+
+	// Запрашиваем количество слов для перемещения
+	bool ok;
+	int wordCount = QInputDialog::getInt(this, "Move Words to Previous",
+		"Number of words to move from beginning of current sentence:",
+		1, 1, 100, 1, &ok);
+
+	if (!ok) return;
+
+	if (m_aligner.moveAudioWordsToPrev(row, wordCount)) {
+		syncTableFromAligner();
+		setModified(true);
+		statusBar()->showMessage(QString("Moved %1 word(s) to previous sentence").arg(wordCount), 3000);
+	}
+	else {
+		QMessageBox::warning(this, "Error", "Failed to move words. Check boundaries.");
+	}
+}
+
+void MainWindow::onMoveAudioWordsToNext()
+{
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Cannot move to next (last row)");
+		return;
+	}
+
+	bool ok;
+	int wordCount = QInputDialog::getInt(this, "Move Words to Next",
+		"Number of words to move from end of current sentence:",
+		1, 1, 100, 1, &ok);
+
+	if (!ok) return;
+
+	if (m_aligner.moveAudioWordsToNext(row, wordCount)) {
+		syncTableFromAligner();
+		setModified(true);
+		statusBar()->showMessage(QString("Moved %1 word(s) to next sentence").arg(wordCount), 3000);
+	}
+	else {
+		QMessageBox::warning(this, "Error", "Failed to move words. Check boundaries.");
+	}
 }
 

@@ -65,6 +65,9 @@ private slots:
 	void onSaveProjectAs();
 	void onNewProject();
 
+	void onMoveAudioWordsToPrev();
+	void onMoveAudioWordsToNext();
+
 	// Context menu
 	void showContextMenu(const QPoint& pos);
 protected:

@@ -77,7 +77,8 @@ public:
 	// Обновить кэш после изменений
 	void rebuildSourceWordsCache();
 	void rebuildAudioSentences();
-	void insertSentence(const QStringList &currentWords, int currentSentenceIdx, bool currentIsIns, int currentStartMs, int currentEndMs);
+	void insertSentence(const QStringList &currentWords, int currentSentenceIdx, bool currentIsIns, 
+		int currentStartMs, int currentEndMs, int firstWordIdx, int lastWordIdx);
 
 	// Разбивка текста
 	QVector<QString> splitIntoSentences(const QString& text);
@@ -100,5 +101,9 @@ public:
 	// Вспомогательные
 	int rowCount() const;
 	void clear();
+
+	bool moveAudioWordsToPrev(int sentenceIndex, int wordOffset);
+	bool moveAudioWordsToNext(int sentenceIndex, int wordOffset);
+	void updateAudioSentenceFromEntries(int sentenceIndex);
 };
 

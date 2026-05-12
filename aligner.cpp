@@ -993,46 +993,86 @@ void Aligner::rebuildSourceWordsCache()
 	}
 }
 
-void Aligner::insertSentence(const QStringList &currentWords, int currentSentenceIdx, bool currentIsIns, int currentStartMs, int currentEndMs)
+void Aligner::insertSentence(const QStringList &currentWords, int currentSentenceIdx, 
+	bool currentIsIns, int currentStartMs, int currentEndMs, int firstWordIdx, int lastWordIdx)
 {
 	if (currentIsIns) {
 		TextSentence emptyTextCell;
 		emptyTextCell.isExcluded = true;
+		emptyTextCell.text = "";
 
-		sourceCells.insert(currentSentenceIdx, emptyTextCell);
-		translatedCells.insert(currentSentenceIdx, emptyTextCell);
+	//	sourceCells.insert(currentSentenceIdx, emptyTextCell);
+	//	translatedCells.insert(currentSentenceIdx, emptyTextCell);
+	//	AudioSentence emptyAudioCell;
+	//	emptyAudioCell.isExcluded = true;
+	//	audioCells.insert(currentSentenceIdx, emptyAudioCell);
 
-		AudioSentence emptyAudioCell;
-		emptyAudioCell.isExcluded = true;
-		audioCells.insert(currentSentenceIdx, emptyAudioCell);
+		// Вставляем в середину
+		if (currentSentenceIdx < sourceCells.size()) {
+			sourceCells.insert(currentSentenceIdx, emptyTextCell);
+			translatedCells.insert(currentSentenceIdx, emptyTextCell);
+
+			AudioSentence emptyAudioCell;
+			emptyAudioCell.isExcluded = true;
+			audioCells.insert(currentSentenceIdx, emptyAudioCell);
+		}
+		else {
+			// Добавляем в конец
+			sourceCells.append(emptyTextCell);
+			translatedCells.append(emptyTextCell);
+
+			AudioSentence emptyAudioCell;
+			emptyAudioCell.isExcluded = true;
+			audioCells.append(emptyAudioCell);
+		}		
 
 		// Теперь нужно заполнить вставленную ячейку audioCells
 		// (она только что вставлена, индекс currentSentenceIdx)
-		audioCells[currentSentenceIdx].text = currentWords.join(" ");
-		audioCells[currentSentenceIdx].audioStartMs = currentStartMs;
-		audioCells[currentSentenceIdx].audioEndMs = currentEndMs;
-		audioCells[currentSentenceIdx].isExcluded = false;
+		int targetIdx = (currentSentenceIdx < sourceCells.size()) ? currentSentenceIdx : audioCells.size() - 1;
+		audioCells[targetIdx].text = currentWords.join(" ");
+		audioCells[targetIdx].audioStartMs = currentStartMs;
+		audioCells[targetIdx].audioEndMs = currentEndMs;
+		audioCells[targetIdx].isExcluded = false;
+		audioCells[targetIdx].firstWordIndex = firstWordIdx;
+		audioCells[targetIdx].lastWordIndex = lastWordIdx;
 	}
 	else {
 		// Обычное предложение: размещаем в существующей ячейке
 		// Индекс должен быть в пределах массива
-		if (currentSentenceIdx < audioCells.size()) {
+		if (currentSentenceIdx >= 0 && currentSentenceIdx < audioCells.size()) {
 			audioCells[currentSentenceIdx].text = currentWords.join(" ");
 			audioCells[currentSentenceIdx].audioStartMs = currentStartMs;
 			audioCells[currentSentenceIdx].audioEndMs = currentEndMs;
 			audioCells[currentSentenceIdx].isExcluded = false;
+			audioCells[currentSentenceIdx].firstWordIndex = firstWordIdx;
+			audioCells[currentSentenceIdx].lastWordIndex = lastWordIdx;
+		}
+		else if (currentSentenceIdx >= audioCells.size()) {
+			// Если индекс выходит за пределы, добавляем новую ячейку
+			AudioSentence newCell;
+			newCell.text = currentWords.join(" ");
+			newCell.audioStartMs = currentStartMs;
+			newCell.audioEndMs = currentEndMs;
+			newCell.isExcluded = false;
+			newCell.firstWordIndex = firstWordIdx;
+			newCell.lastWordIndex = lastWordIdx;
+			audioCells.append(newCell);
 		}
 	}	
 }
 
 void Aligner::rebuildAudioSentences()
 {
+	// Сбрасываем индексы в audioEntries
+
 	// 1. Инициализация: audioCells такого же размера, как sourceCells
 	audioCells.clear();
 	audioCells.resize(sourceCells.size());
 	for (int i = 0; i < audioCells.size(); ++i) {
 		audioCells[i].isExcluded = true;
 		audioCells[i].text = "";
+		audioCells[i].firstWordIndex = -1;
+		audioCells[i].lastWordIndex = -1;
 	}
 
 	if (audioEntries.isEmpty()) {
@@ -1045,6 +1085,9 @@ void Aligner::rebuildAudioSentences()
 	int currentEndMs = -1;
 	int currentSentenceIdx = -1;
 	bool currentIsIns = false;
+	int currentFirstWordIdx = -1;
+	int currentLastWordIdx = -1;
+
 
 	for (int i = audioEntries.size() - 1; i >= 0; i--) {
 		const AudioEntry& entry = audioEntries[i];
@@ -1055,7 +1098,7 @@ void Aligner::rebuildAudioSentences()
 
 			// Сохраняем предыдущее накопленное предложение
 			if (!currentWords.isEmpty() && currentSentenceIdx >= 0) {
-				insertSentence(currentWords, currentSentenceIdx, currentIsIns, currentStartMs, currentEndMs);				
+				insertSentence(currentWords, currentSentenceIdx, currentIsIns, currentStartMs, currentEndMs, currentFirstWordIdx, currentLastWordIdx);
 			}
 
 			// Начинаем новое предложение
@@ -1065,19 +1108,20 @@ void Aligner::rebuildAudioSentences()
 			currentEndMs = entry.endMs;
 			currentSentenceIdx = entry.sentenceIdx;
 			currentIsIns = entry.ins;
+			currentFirstWordIdx = i;
+			currentLastWordIdx = i;
 		}
 		else {
 			currentWords.prepend(entry.text);
 			currentStartMs = entry.startMs;
+			currentFirstWordIdx = i;
 		}
 	}
 
 	// Сохраняем последнее предложение
 	if (!currentWords.isEmpty()) {
-		insertSentence(currentWords, currentSentenceIdx, currentIsIns, currentStartMs, currentEndMs);
-	}
-
-	
+		insertSentence(currentWords, currentSentenceIdx, currentIsIns, currentStartMs, currentEndMs, currentFirstWordIdx, currentLastWordIdx);
+	}	
 }
 
 void Aligner::alignAudio()
@@ -1319,5 +1363,117 @@ void Aligner::alignAudioToSource()
 	modified = true;
 }
 
+bool Aligner::moveAudioWordsToPrev(int sentenceIndex, int wordOffset)
+{
+	if (sentenceIndex <= 0 || sentenceIndex >= audioCells.size()) return false;
+	if (audioCells[sentenceIndex].firstWordIndex < 0) return false;
 
+	AudioSentence& curr = audioCells[sentenceIndex];
+	AudioSentence& prev = audioCells[sentenceIndex - 1];
+
+	int firstWord = curr.firstWordIndex;
+	int lastWord = curr.lastWordIndex;
+
+	if (firstWord < 0 || lastWord < 0 || firstWord > lastWord) return false;
+	if (wordOffset <= 0 || wordOffset > (lastWord - firstWord + 1)) return false;
+
+	// Определяем новые границы
+	int newFirstWord = firstWord + wordOffset;
+	int movedEnd = firstWord + wordOffset - 1;
+
+	// Обновляем previous предложение
+	if (prev.firstWordIndex < 0) {
+		prev.firstWordIndex = firstWord;
+	}
+	prev.lastWordIndex = movedEnd;
+
+	// Обновляем текущее предложение
+	curr.firstWordIndex = newFirstWord;
+	if (curr.firstWordIndex > curr.lastWordIndex) {
+		// Все слова ушли - помечаем как исключенное/пустое
+		curr.isExcluded = true;
+		curr.text = "";
+	}
+
+	// Обновляем тексты предложений
+	updateAudioSentenceFromEntries(sentenceIndex - 1);
+	updateAudioSentenceFromEntries(sentenceIndex);
+
+	// Обновляем индексы в audioEntries
+	for (int i = firstWord; i <= movedEnd; ++i) {
+		audioEntries[i].sentenceIdx = sentenceIndex - 1;
+		audioEntries[i].ins = false;
+	}
+	for (int i = newFirstWord; i <= lastWord; ++i) {
+		audioEntries[i].sentenceIdx = sentenceIndex;
+		audioEntries[i].ins = false;
+	}
+
+	modified = true;
+	return true;
+}
+
+bool Aligner::moveAudioWordsToNext(int sentenceIndex, int wordOffset)
+{
+	if (sentenceIndex < 0 || sentenceIndex >= audioCells.size() - 1) return false;
+	if (audioCells[sentenceIndex].firstWordIndex < 0) return false;
+
+	AudioSentence& curr = audioCells[sentenceIndex];
+	AudioSentence& next = audioCells[sentenceIndex + 1];
+
+	int firstWord = curr.firstWordIndex;
+	int lastWord = curr.lastWordIndex;
+
+	if (firstWord < 0 || lastWord < 0 || firstWord > lastWord) return false;
+	if (wordOffset <= 0 || wordOffset > (lastWord - firstWord + 1)) return false;
+
+	// Определяем новые границы
+	int movedStart = lastWord - wordOffset + 1;
+	int newLastWord = movedStart - 1;
+
+	// Обновляем следующее предложение
+	if (next.lastWordIndex < 0) {
+		next.lastWordIndex = lastWord;
+	}
+	next.firstWordIndex = movedStart;
+
+	// Обновляем текущее предложение
+	curr.lastWordIndex = newLastWord;
+	if (curr.firstWordIndex > curr.lastWordIndex) {
+		curr.isExcluded = true;
+		curr.text = "";
+	}
+
+	// Обновляем тексты предложений
+	updateAudioSentenceFromEntries(sentenceIndex);
+	updateAudioSentenceFromEntries(sentenceIndex + 1);
+
+	// Обновляем индексы в audioEntries
+	for (int i = movedStart; i <= lastWord; ++i) {
+		audioEntries[i].sentenceIdx = sentenceIndex + 1;
+		audioEntries[i].ins = false;
+	}
+
+	modified = true;
+	return true;
+}
+
+void Aligner::updateAudioSentenceFromEntries(int sentenceIndex)
+{
+	if (sentenceIndex < 0 || sentenceIndex >= audioCells.size()) return;
+
+	AudioSentence& sent = audioCells[sentenceIndex];
+	if (sent.firstWordIndex < 0 || sent.lastWordIndex < 0) return;
+
+	QStringList words;
+	sent.audioStartMs = audioEntries[sent.firstWordIndex].startMs;
+	sent.audioEndMs = audioEntries[sent.lastWordIndex].endMs;
+
+	for (int i = sent.firstWordIndex; i <= sent.lastWordIndex; ++i) {
+		words.append(audioEntries[i].text);
+	}
+
+	sent.text = words.join(" ");
+	sent.isExcluded = false;
+}
 
