@@ -352,7 +352,6 @@ void Aligner::setCellText(int row, int column, const QString& text)
 
 void Aligner::clear()
 {
-	projectPath.clear();
 	sourceCells.clear();
 	translatedCells.clear();
 	audioCells.clear();
@@ -602,7 +601,7 @@ void Aligner::calcAudioSimilarity()
 		totalAudioSim /= n;
 }
 
-bool Aligner::splitAudioToMp3(const QString &ffmpegPath)
+bool Aligner::prepareSplitting(QString &outputDirectory)
 {
 	// Проверяем входной файл
 	QFileInfo inputInfo(currentAudioFile);
@@ -611,7 +610,7 @@ bool Aligner::splitAudioToMp3(const QString &ffmpegPath)
 		return false;
 	}
 
-	QString outputDirectory = QFileInfo(currentAudioFile).absolutePath();
+	outputDirectory = QFileInfo(currentAudioFile).absolutePath();
 
 	// Создаем выходную директорию, если её нет
 	QDir dir;
@@ -620,87 +619,108 @@ bool Aligner::splitAudioToMp3(const QString &ffmpegPath)
 		return false;
 	}
 
+	return true;
+}
+
+bool Aligner::performSplitting(int i, const QString &outputDirectory)
+{
+	const AudioSentence& cell = audioCells[i];
+
+	// Пропускаем исключенные или пустые ячейки
+	if (cell.isExcluded) {
+		qDebug() << "Skipping excluded cell" << i;
+		return true;
+	}
+
+	// Проверяем валидность таймкодов
+	if (cell.audioStartMs < 0 || cell.audioEndMs < 0 ||
+		cell.audioEndMs <= cell.audioStartMs) {
+		qDebug() << "Invalid timestamps for cell" << i
+			<< "start:" << cell.audioStartMs
+			<< "end:" << cell.audioEndMs;
+		return false;
+	}
+	
+
+	// Формируем имя выходного файла
+	QString outputFileName = QString("%1_%2.mp3")
+		.arg(QFileInfo(currentAudioFile).baseName())
+		.arg(i, 4, 10, QChar('0')); // нумерация с 0001
+
+	QString outputFilePath = QDir(outputDirectory)
+		.filePath(outputFileName);
+
+	// Конвертируем миллисекунды в формат времени для FFmpeg (HH:MM:SS.xxx)
+	QString startTime = msToTimeFormat(cell.audioStartMs + 200);	// делаем небольшой запас т.к. иначе обрезка по самому концу слова
+	QString duration = msToTimeFormat(cell.audioEndMs - cell.audioStartMs);
+
+	// Формируем команду FFmpeg
+	QStringList ffmpegArgs;
+	ffmpegArgs << "-i" << currentAudioFile;
+	ffmpegArgs << "-ss" << startTime;      // время начала
+	ffmpegArgs << "-t" << duration;        // длительность
+	ffmpegArgs << "-acodec" << "libmp3lame"; // кодек MP3
+	ffmpegArgs << "-ab" << "192k";          // битрейт (можно настроить)
+	ffmpegArgs << "-ar" << "44100";         // частота дискретизации
+	ffmpegArgs << "-ac" << "2";             // стерео
+	ffmpegArgs << "-y";                     // перезаписывать файлы
+	ffmpegArgs << outputFilePath;
+
+	// Выполняем FFmpeg
+	QProcess ffmpeg;
+	ffmpeg.start(cfg.ffmpegPath, ffmpegArgs);
+
+	if (!ffmpeg.waitForStarted(3000)) {
+		qDebug() << "Failed to start ffmpeg for cell" << i;
+		return false;
+	}
+
+	if (!ffmpeg.waitForFinished(60000)) { // таймаут 60 секунд
+		qDebug() << "FFmpeg timeout for cell" << i;
+		ffmpeg.kill();
+		return false;
+	}
+
+	// Проверяем результат
+	if (ffmpeg.exitCode() == 0 && QFile::exists(outputFilePath)) {
+		qDebug() << "Successfully created:" << outputFileName;
+		
+		// Можно добавить теги ID3
+	//@	addMetadataToMp3(outputFilePath, cell.text, i);
+	}
+	else {
+		qDebug() << "Failed to create:" << outputFileName;
+		qDebug() << "FFmpeg error:" << ffmpeg.readAllStandardError();
+	}
+
+	return true;
+}
+
+bool Aligner::splitAudioSentenceToMp3(int i)
+{
+	QString outputDirectory;
+	if (!prepareSplitting(outputDirectory))
+		return false;
+	return performSplitting(i, outputDirectory);
+}
+
+bool Aligner::splitAudioToMp3()
+{
+	QString outputDirectory;
+	if (!prepareSplitting(outputDirectory))
+		return false;
+		
 	int successCount = 0;
 	int totalValidCells = 0;
 
 	// Перебираем все ячейки
 	for (int i = 0; i < audioCells.size(); ++i) {
-		const AudioSentence& cell = audioCells[i];
-
-		// Пропускаем исключенные или пустые ячейки
-		if (cell.isExcluded) {
-			qDebug() << "Skipping excluded cell" << i;
-			continue;
-		}
-
-		// Проверяем валидность таймкодов
-		if (cell.audioStartMs < 0 || cell.audioEndMs < 0 ||
-			cell.audioEndMs <= cell.audioStartMs) {
-			qDebug() << "Invalid timestamps for cell" << i
-				<< "start:" << cell.audioStartMs
-				<< "end:" << cell.audioEndMs;
-			continue;
-		}
-
-		totalValidCells++;
-
-		// Формируем имя выходного файла
-		QString outputFileName = QString("%1_%2.mp3")
-			.arg(QFileInfo(currentAudioFile).baseName())
-			.arg(i + 1, 4, 10, QChar('0')); // нумерация с 0001
-
-		QString outputFilePath = QDir(outputDirectory)
-			.filePath(outputFileName);
-
-		// Конвертируем миллисекунды в формат времени для FFmpeg (HH:MM:SS.xxx)
-		QString startTime = msToTimeFormat(cell.audioStartMs);
-		QString duration = msToTimeFormat(cell.audioEndMs - cell.audioStartMs);
-
-		// Формируем команду FFmpeg
-		QStringList ffmpegArgs;
-		ffmpegArgs << "-i" << currentAudioFile;
-		ffmpegArgs << "-ss" << startTime;      // время начала
-		ffmpegArgs << "-t" << duration;        // длительность
-		ffmpegArgs << "-acodec" << "libmp3lame"; // кодек MP3
-		ffmpegArgs << "-ab" << "192k";          // битрейт (можно настроить)
-		ffmpegArgs << "-ar" << "44100";         // частота дискретизации
-		ffmpegArgs << "-ac" << "2";             // стерео
-		ffmpegArgs << "-y";                     // перезаписывать файлы
-		ffmpegArgs << outputFilePath;
-
-		// Выполняем FFmpeg
-		QProcess ffmpeg;
-		ffmpeg.start(ffmpegPath, ffmpegArgs);
-
-		if (!ffmpeg.waitForStarted(3000)) {
-			qDebug() << "Failed to start ffmpeg for cell" << i;
-			continue;
-		}
-
-		if (!ffmpeg.waitForFinished(60000)) { // таймаут 60 секунд
-			qDebug() << "FFmpeg timeout for cell" << i;
-			ffmpeg.kill();
-			continue;
-		}
-
-		// Проверяем результат
-		if (ffmpeg.exitCode() == 0 && QFile::exists(outputFilePath)) {
-			qDebug() << "Successfully created:" << outputFileName;
+		if (performSplitting(i, outputDirectory))
 			successCount++;
-
-			// Можно добавить теги ID3
-		//@	addMetadataToMp3(outputFilePath, cell.text, i);
-		}
-		else {
-			qDebug() << "Failed to create:" << outputFileName;
-			qDebug() << "FFmpeg error:" << ffmpeg.readAllStandardError();
-		}
 	}
 
-	qDebug() << "Split completed. Success:" << successCount
-		<< "of" << totalValidCells;
-
-	return successCount == totalValidCells;
+	qDebug() << "Split completed. Success:" << successCount;
+	return  true;
 }
 
 
@@ -818,8 +838,22 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		stream << "# AudioText: " << currentAudioTextFile << "\n";
 	if (!currentAudioFile.isEmpty())
 		stream << "# AudioFile: " << currentAudioFile << "\n";
-
 	stream << "\n";
+
+	// Сохраняем аудио энтрисы, если они есть
+	if (!audioEntries.isEmpty()) {
+		stream << "# Audio entries count: " << audioEntries.size() << "\n";
+		for (int i = 0; i < audioEntries.size(); ++i) {
+			const AudioEntry& entry = audioEntries[i];
+			stream << "aentry: "
+				<< entry.text << " | "
+				<< entry.startMs << " | "
+				<< entry.endMs << " | "
+				<< entry.sentenceIdx << " | "
+				<< (entry.ins ? "1" : "0") << "\n";
+		}
+		stream << "\n";
+	}
 
 	// Данные
 	int rows = rowCount();
@@ -832,6 +866,8 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		bool audioExcl = (i < audioCells.size()) && audioCells[i].isExcluded;
 		int startMs = (i < audioCells.size()) ? audioCells[i].audioStartMs : -1;
 		int endMs = (i < audioCells.size()) ? audioCells[i].audioEndMs : -1;
+		int firstIdx = (i < audioCells.size()) ? audioCells[i].firstWordIndex : -1;
+		int lastIdx = (i < audioCells.size()) ? audioCells[i].lastWordIndex : -1;
 
 		// Экранирование спецсимволов? Можно не делать, если доверяем данным
 		stream << "source: " << src << "\n";
@@ -842,6 +878,8 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		stream << "audio_excl: " << (audioExcl ? "true" : "false") << "\n";
 		stream << "start_ms: " << startMs << "\n";
 		stream << "end_ms: " << endMs << "\n";
+		stream << "first: " << firstIdx << "\n";
+		stream << "last: " << lastIdx << "\n";
 		stream << "\n";
 	}
 
@@ -869,6 +907,10 @@ bool Aligner::loadProjectTxt(const QString& filename)
 	QString currentEn, currentRu, currentAudio;
 	bool currentEnExcl = false, currentRuExcl = false, currentAudioExcl = false;
 	int currentStartMs = -1, currentEndMs = -1;
+	int currentFirstIdx = -1, currentLastIdx = -1;
+
+	// Флаг, что мы в секции аудио энтрисов
+	bool inAudioEntriesSection = false;
 
 	while (!stream.atEnd()) {
 		QString line = stream.readLine();
@@ -877,21 +919,23 @@ bool Aligner::loadProjectTxt(const QString& filename)
 		if (line.trimmed().isEmpty()) {
 			if (!currentEn.isEmpty() || !currentRu.isEmpty() || !currentAudio.isEmpty()) {
 				// Сохраняем текущий блок
-				TextSentence enCell;
-				enCell.text = currentEn;
-				enCell.isExcluded = currentEnExcl;
-				sourceCells.append(enCell);
+				TextSentence sourceCell;
+				sourceCell.text = currentEn;
+				sourceCell.isExcluded = currentEnExcl;
+				sourceCells.append(sourceCell);
 
-				TextSentence ruCell;
-				ruCell.text = currentRu;
-				ruCell.isExcluded = currentRuExcl;
-				translatedCells.append(ruCell);
+				TextSentence transCell;
+				transCell.text = currentRu;
+				transCell.isExcluded = currentRuExcl;
+				translatedCells.append(transCell);
 
 				AudioSentence audioCell;
 				audioCell.text = currentAudio;
 				audioCell.isExcluded = currentAudioExcl;
 				audioCell.audioStartMs = currentStartMs;
 				audioCell.audioEndMs = currentEndMs;
+				audioCell.firstWordIndex = currentFirstIdx;
+				audioCell.lastWordIndex = currentLastIdx;
 				audioCells.append(audioCell);
 
 				// Сбрасываем для следующего блока
@@ -903,6 +947,8 @@ bool Aligner::loadProjectTxt(const QString& filename)
 				currentAudioExcl = false;
 				currentStartMs = -1;
 				currentEndMs = -1;
+				currentFirstIdx = -1;
+				currentLastIdx = -1;
 			}
 			continue;
 		}
@@ -926,8 +972,32 @@ bool Aligner::loadProjectTxt(const QString& filename)
 			else if (line.startsWith("# AudioFile: ")) {
 				currentAudioFile = value;
 			}
+			else if (line.startsWith("# Audio entries count: ")) {
+				// Начинаем секцию аудио энтрисов
+				inAudioEntriesSection = true;
+				int count = line.mid(22).trimmed().toInt();
+				audioEntries.reserve(count);
+			}
 			continue;
 		}
+
+		// Парсим аудио энтрисы (специальный формат)
+		if (inAudioEntriesSection && line.startsWith("aentry: ")) {
+			QString data = line.mid(8).trimmed();
+			QStringList parts = data.split(" | ");
+			if (parts.size() >= 5) {
+				AudioEntry entry;
+				entry.text = parts[0];
+				entry.startMs = parts[1].toInt();
+				entry.endMs = parts[2].toInt();
+				entry.sentenceIdx = parts[3].toInt();
+				entry.ins = (parts[4] == "1");
+				audioEntries.append(entry);
+			}
+			continue;
+		}
+
+		// Парсим обычные ключи
 
 		// Парсим ключ: значение
 		int colonPos = line.indexOf(':');
@@ -944,6 +1014,8 @@ bool Aligner::loadProjectTxt(const QString& filename)
 		else if (key == "audio_excl") currentAudioExcl = (value == "true");
 		else if (key == "start_ms") currentStartMs = value.toInt();
 		else if (key == "end_ms") currentEndMs = value.toInt();
+		else if (key == "first") currentFirstIdx = value.toInt();
+		else if (key == "last") currentLastIdx = value.toInt();
 	}
 
 	// Сохраняем последний блок, если есть
@@ -963,11 +1035,28 @@ bool Aligner::loadProjectTxt(const QString& filename)
 		audioCell.isExcluded = currentAudioExcl;
 		audioCell.audioStartMs = currentStartMs;
 		audioCell.audioEndMs = currentEndMs;
+		audioCell.firstWordIndex = currentFirstIdx;
+		audioCell.lastWordIndex = currentLastIdx;
 		audioCells.append(audioCell);
 	}
 
 	file.close();
 	normalizeRowCount();
+
+	// Валидация индексов (на всякий случай)
+	for (int i = 0; i < audioCells.size(); ++i) {
+		AudioSentence& sent = audioCells[i];
+		if (sent.firstWordIndex >= 0 && sent.lastWordIndex >= 0) {
+			// Проверяем, что индексы в пределах массива
+			if (sent.firstWordIndex < 0 || sent.lastWordIndex >= audioEntries.size() ||
+				sent.firstWordIndex > sent.lastWordIndex) {
+				// Сбрасываем некорректные индексы
+				sent.firstWordIndex = -1;
+				sent.lastWordIndex = -1;
+			}
+		}
+	}
+
 	modified = false;
 	return true;
 }

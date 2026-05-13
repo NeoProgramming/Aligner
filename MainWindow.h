@@ -3,7 +3,7 @@
 #include <QMainWindow>
 #include <QTableWidget>
 #include "aligner.h"
-#include "Settings.h"
+
 
 class QAction;
 class QProcess;
@@ -67,6 +67,7 @@ private slots:
 
 	void onMoveAudioWordsToPrev();
 	void onMoveAudioWordsToNext();
+	void onSplitSentence();
 
 	// Context menu
 	void showContextMenu(const QPoint& pos);
@@ -93,10 +94,9 @@ private:
 	void showAudioEntriesViewer();
 
 	InfoMode m_imode = InfoMode::AudioSim;
-	Settings cfg;
+	
 	Aligner m_aligner;
-	QTableWidget* m_table;
-	QProcess* m_ffmpegProcess;
+	QTableWidget* m_table;	
 	AudioEntriesViewer* m_audioEntriesViewer;
 };
 

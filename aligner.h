@@ -4,7 +4,7 @@
 #include <QString>
 #include <QHash>
 #include "alignment.h"
-
+#include "Settings.h"
 
 class Aligner : public IAlignmentEngine
 {
@@ -39,8 +39,7 @@ public:
 	void clearAudio();
 	
 	// Данные (публичные поля для простоты)
-
-	QString projectPath;
+	Settings cfg;
 
 	 // Независимые массивы для каждого столбца
 	QVector<TextSentence> sourceCells;      // оригинальный текст
@@ -93,7 +92,10 @@ public:
 	void alignTranslatedToSource();
 	void alignAudioToSource();
 
-	bool splitAudioToMp3(const QString &ffmpegPath);
+	bool splitAudioToMp3();
+	bool splitAudioSentenceToMp3(int i);
+	bool prepareSplitting(QString &outputDirectory);
+	bool performSplitting(int i, const QString &outputDirectory);
 		
 	// Нормализация количества строк
 	void normalizeRowCount();

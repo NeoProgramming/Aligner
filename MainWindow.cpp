@@ -26,10 +26,9 @@
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
 	, m_table(nullptr)
-	, m_ffmpegProcess(nullptr)
 {
 	// Загружаем настройки
-	cfg.loadSettings();
+	m_aligner.cfg.loadSettings();
 
 	setupUI();
 	createMenuBar();
@@ -43,11 +42,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-	cfg.saveSettings();
-
-	if (m_ffmpegProcess) {
-		delete m_ffmpegProcess;
-	}
+	m_aligner.cfg.saveSettings();
 }
 
 // Метод для обновления и показа окна
@@ -487,19 +482,25 @@ void MainWindow::onDebugInfo()
 	int col = m_table->currentColumn();
 
 	if (row < 0) return;
-	if (col < 0 || col > 2) {
-		QMessageBox::information(this, "Info", "Select a cell in the column to exclude");
-		return;
-	}
+	if (col == 2) {
+		int fi = m_aligner.audioCells[row].firstWordIndex;
+		int ei = m_aligner.audioCells[row].lastWordIndex;
+		QString s = QString::asprintf("row %d: fi=%d, ei=%d", row, fi, ei);
+		
+		for (int i = fi; i <= ei && i>=0 && i< m_aligner.audioEntries.size(); i++) {
+			s += "\r\n";
+			s += m_aligner.audioEntries[i].text;
+		}
+		
+		QMessageBox::information(this, "Info", s);
 
-	QString s = QString::asprintf("row %d:", row);
-	QMessageBox::information(this, "Info", s);
+	}
 }
 
 void MainWindow::onRecalc()
 {
 	m_aligner.calcTranslatedSimilarity();
-	m_aligner.calcTranslatedSimilarity();
+	m_aligner.calcAudioSimilarity();
 	syncTableFromAligner();
 }
 
@@ -572,7 +573,7 @@ void MainWindow::onSplitAudio()
 		return;
 	}
 	
-	m_aligner.splitAudioToMp3(cfg.ffmpegPath);
+	m_aligner.splitAudioToMp3();
 	
 	statusBar()->showMessage(QString("Audio file splitted"), 3000);
 }
@@ -594,6 +595,8 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	if (index.column() == 2) {
 		menu.addAction("Move words to previous sentence", this, &MainWindow::onMoveAudioWordsToPrev);
 		menu.addAction("Move words to next sentence", this, &MainWindow::onMoveAudioWordsToNext);
+		menu.addSeparator();
+		menu.addAction("Split this audiosentence", this, &MainWindow::onSplitSentence);
 		menu.addSeparator();
 	}
 	else {
@@ -716,12 +719,12 @@ void MainWindow::splitRowAtPosition(int row, int col, int cursorPos)
 
 void MainWindow::onSaveProject()
 {
-	if (m_aligner.projectPath.isEmpty()) {
+	if (m_aligner.cfg.recentProjectPath.isEmpty()) {
 		onSaveProjectAs();
 	}
 	else {
-		if (m_aligner.saveProjectTxt(m_aligner.projectPath)) {
-			statusBar()->showMessage("Project saved: " + m_aligner.projectPath, 3000);
+		if (m_aligner.saveProjectTxt(m_aligner.cfg.recentProjectPath)) {
+			statusBar()->showMessage("Project saved: " + m_aligner.cfg.recentProjectPath, 3000);
 			setModified(false);
 		}
 		else {
@@ -739,7 +742,7 @@ void MainWindow::onSaveProjectAs()
 	if (!filename.endsWith(".align")) filename += ".align";
 
 	if (m_aligner.saveProjectTxt(filename)) {
-		m_aligner.projectPath = filename;
+		m_aligner.cfg.recentProjectPath = filename;
 		setModified(false);
 		statusBar()->showMessage("Project saved: " + filename, 3000);
 	}
@@ -751,12 +754,11 @@ void MainWindow::onSaveProjectAs()
 void MainWindow::onLoadProject()
 {
 	QString filename = QFileDialog::getOpenFileName(this, "Load Project",
-		cfg.recentProjectPath, "Alignment Project (*.align);;All files (*.*)");
+		m_aligner.cfg.recentProjectPath, "Alignment Project (*.align);;All files (*.*)");
 	if (filename.isEmpty()) return;
 
 	if (m_aligner.loadProjectTxt(filename)) {
-		m_aligner.projectPath = filename;
-		cfg.recentProjectPath = filename;
+		m_aligner.cfg.recentProjectPath = filename;
 		syncTableFromAligner();
 		setModified(false);
 		statusBar()->showMessage("Project loaded: " + filename, 3000);
@@ -863,6 +865,16 @@ void MainWindow::onMoveAudioWordsToPrev()
 	else {
 		QMessageBox::warning(this, "Error", "Failed to move words. Check boundaries.");
 	}
+}
+
+void MainWindow::onSplitSentence()
+{
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Error row index");
+		return;
+	}
+	m_aligner.splitAudioSentenceToMp3(row);
 }
 
 void MainWindow::onMoveAudioWordsToNext()
