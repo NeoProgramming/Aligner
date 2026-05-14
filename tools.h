@@ -18,3 +18,5 @@ void saveToFile(const QString& filename, const QString& content);
 
 double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QString& transSentence);
 double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords);
+
+bool intersect(const QStringList& list1, const QStringList& list2);

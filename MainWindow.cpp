@@ -29,6 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
 	// Загружаем настройки
 	m_aligner.cfg.loadSettings();
+	m_aligner.loadDictionary(m_aligner.cfg.dictPath);
 
 	setupUI();
 	createMenuBar();

@@ -207,9 +207,7 @@ void Aligner::flushPendingGroup(int sourceIndex, int audioStart, int audioCount)
 
 Aligner::Aligner()
 	: modified(false)
-{
-	
-	loadDictionary("my_initial_dict.dic");
+{	
 }
 
 int Aligner::rowCount() const
@@ -749,7 +747,6 @@ void Aligner::loadDictionary(const QString& filename)
 
 			if (!source.isEmpty() && !trans.isEmpty()) {
 				m_dictionary[trans] = source;
-				m_dictionaryReverse[source] = trans;
 				lineCount++;
 			}
 		}
@@ -760,56 +757,58 @@ void Aligner::loadDictionary(const QString& filename)
 }
 
 
-
-
 double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSentence)
 {
 	// Токенизация английского предложения
 	QStringList enWords = tokenizeWords(enSentence);
 	QStringList ruWords = tokenizeWords(ruSentence);
-
 	if (enWords.isEmpty() || ruWords.isEmpty()) return 0.0;
+		
 
-	// Множество английских слов
-	QSet<QString> enSet;
-	for (const QString& w : enWords) {
-		enSet.insert(w);
+	// для каждого английского и английского_токенизированного слова
+	// переводим его в список русских слов и определяем есть ли такие русские слова в ruWords
+
+	// число совпадений
+	int count = 0;
+	
+	// у нас есть множество английских слов; цикл по ним
+	for (QString enWord : enWords) {
+		// если слово напрямую есть среди русских - ок, это какое-то имя собственное
+		if (ruWords.indexOf(enWord) >= 0) {
+			count++;
+		}
+
+		// если перевод слова есть в словаре
+		if (m_dictionary.contains(enWord)) {
+			// выбираем список слов, являющихся переводом данного
+			QStringList trWords = tokenizeWords(m_dictionary[enWord]);
+			if (intersect(ruWords, trWords))
+				count++;
+
+			// если лемматизированный перевод присутствует в русском предложении
+			for (QString &tw : trWords)
+				tw = stemRussian(tw);
+			if (intersect(ruWords, trWords))
+				count++;
+		}
+		// если перевод лемматизированного слова есть в словаре
+		enWord = stemEnglish(enWord);
+		if (m_dictionary.contains(enWord)) {
+			// выбираем список слов, являющихся переводом данного
+			QStringList trWords = tokenizeWords(m_dictionary[enWord]);
+			if (intersect(ruWords, trWords))
+				count++;
+
+			// если лемматизированный перевод присутствует в русском предложении
+			for (QString &tw : trWords)
+				tw = stemRussian(tw);
+			if (intersect(ruWords, trWords))
+				count++;
+		}
 	}
-
-	// Множество "эквивалентных" русских слов
-	QSet<QString> ruEquivalent;
-
-	for (const QString& ruWord : ruWords) {
-		// Если слово совпадает с английским напрямую
-		if (enSet.contains(ruWord)) {
-			ruEquivalent.insert(ruWord);
-		}
-		// Иначе пробуем словарь
-		else if (m_dictionary.contains(ruWord)) {
-			ruEquivalent.insert(m_dictionary[ruWord]);
-		}
-		// иначе пробуем лемматизированную форму и словарь
-		else if (QString stem = stemRussian(ruWord);  m_dictionary.contains(stem)) {
-			ruEquivalent.insert(m_dictionary[stem]);
-		}
-	}
-
-	if (ruEquivalent.isEmpty()) 
-		return 0.0;
-
-	// Считаем совпадения
-	int score = 0;
-	for (const QString& enWord : enWords) {
-		if (ruEquivalent.contains(enWord)) {
-			score++;
-		}
-		else if (QString stem = stemEnglish(enWord);  ruEquivalent.contains(stem)) {
-			score++;
-		}
-	}
-
+	   	
 	// Нормализуем по длине английского предложения
-	double dscore = (double)score / enWords.size();
+	double dscore = (double)count / enWords.size();
 
 	return dscore;
 }

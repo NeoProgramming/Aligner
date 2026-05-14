@@ -276,3 +276,12 @@ double calculateWordMatchScore(const QStringList& enWords, const QStringList& au
 	double dscore = (double)score / total;
 	return dscore * lengthPenalty;
 }
+
+bool intersect(const QStringList& list1, const QStringList& list2) {
+	for (const QString& str : list1) {
+		if (list2.contains(str)) {
+			return true;
+		}
+	}
+	return false;
+}

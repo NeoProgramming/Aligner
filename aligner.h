@@ -55,7 +55,7 @@ public:
 	QString currentAudioFile;
 
 	QHash<QString, QString> m_dictionary;  // русское слово -> английское
-	QHash<QString, QString> m_dictionaryReverse; // английское -> русское (опционально)
+	
 
 	bool modified;
 	double totalAudioSim = 0;
