@@ -746,7 +746,7 @@ void Aligner::loadDictionary(const QString& filename)
 			QString trans = parts[1].trimmed();
 
 			if (!source.isEmpty() && !trans.isEmpty()) {
-				m_dictionary[trans] = source;
+				m_dictionary[source] = trans;
 				lineCount++;
 			}
 		}
@@ -771,8 +771,12 @@ double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSe
 	// число совпадений
 	int count = 0;
 	
+	qDebug() << "======= RECALC STATS FOR: " << enSentence;
 	// у нас есть множество английских слов; цикл по ним
 	for (QString enWord : enWords) {
+
+		qDebug() << enWord;
+
 		// если слово напрямую есть среди русских - ок, это какое-то имя собственное
 		if (ruWords.indexOf(enWord) >= 0) {
 			count++;
@@ -780,8 +784,11 @@ double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSe
 
 		// если перевод слова есть в словаре
 		if (m_dictionary.contains(enWord)) {
+			QString trs = m_dictionary[enWord];
+			qDebug() << trs;
+
 			// выбираем список слов, являющихся переводом данного
-			QStringList trWords = tokenizeWords(m_dictionary[enWord]);
+			QStringList trWords = tokenizeWords(trs);
 			if (intersect(ruWords, trWords))
 				count++;
 
