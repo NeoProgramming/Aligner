@@ -22,6 +22,7 @@
 #include <QInputDialog>
 #include "tools.h"
 #include "AudioEntriesViewer.h"
+#include "FuzzyLemmatizer.h"|
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -30,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent)
 	// Загружаем настройки
 	m_aligner.cfg.loadSettings();
 	m_aligner.loadDictionary(m_aligner.cfg.dictPath);
+	FuzzyLemmatizer::initLemmatizer(m_aligner.cfg.endingsPath);
 
 	setupUI();
 	createMenuBar();

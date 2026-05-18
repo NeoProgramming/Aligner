@@ -12,7 +12,7 @@
 #include <QJsonArray>
 
 #include "tools.h"
-
+#include "FuzzyLemmatizer.h"
 
 void Aligner::clearSource()
 {
@@ -243,6 +243,22 @@ void Aligner::normalizeRowCount()
 			audioCells.removeAt(i);
 		}
 	}
+
+	// 3. Дополнительная валидация для аудио индексов
+	for (int i = 0; i < audioCells.size(); ++i) {
+		AudioSentence& sent = audioCells[i];
+		if (!sent.isExcluded && !sent.text.isEmpty()) {
+			// Проверяем, что индексы соответствуют тексту
+			if (sent.firstWordIndex >= 0 && sent.lastWordIndex >= 0) {
+				if (sent.firstWordIndex > sent.lastWordIndex ||
+					sent.lastWordIndex >= audioEntries.size()) {
+					// Некорректные индексы - сбрасываем
+					sent.firstWordIndex = -1;
+					sent.lastWordIndex = -1;
+				}
+			}
+		}
+	}
 }
 
 void Aligner::splitCell(int row, int cursorPos, int column)
@@ -290,6 +306,135 @@ void Aligner::splitCell(int row, int cursorPos, int column)
 }
 
 void Aligner::mergeCells(int row1, int row2, int column)
+{
+	if (row1 == row2) return;
+	if (row1 > row2) std::swap(row1, row2);
+
+	// Для текстовых столбцов (0 - source, 1 - translated)
+	if (column >= 0 && column <= 1) {
+		QVector<TextSentence>* cells = (column == 1) ? &translatedCells : &sourceCells;
+
+		// Убеждаемся, что индексы валидны
+		if (row2 >= cells->size()) {
+			return;
+		}
+
+		// Объединяем текст
+		QString merged = (*cells)[row1].text;
+		if (!merged.isEmpty() && !(*cells)[row2].text.isEmpty()) {
+			merged += " ";
+		}
+		merged += (*cells)[row2].text;
+
+		(*cells)[row1].text = merged;
+
+		// Удаляем вторую ячейку
+		cells->removeAt(row2);
+
+		normalizeRowCount();
+		modified = true;
+		return;
+	}
+
+	// Для аудио столбца (column == 2)
+	if (column == 2) {
+		// Убеждаемся, что индексы валидны
+		if (row2 >= audioCells.size()) {
+			return;
+		}
+
+		AudioSentence& cell1 = audioCells[row1];
+		AudioSentence& cell2 = audioCells[row2];
+
+		// Объединяем текст
+		QString mergedText = cell1.text;
+		if (!mergedText.isEmpty() && !cell2.text.isEmpty()) {
+			mergedText += " ";
+		}
+		mergedText += cell2.text;
+
+		// Объединяем времена
+		int mergedStartMs = cell1.audioStartMs;
+		int mergedEndMs = cell2.audioEndMs;
+
+		// Если в первой ячейке нет времени, используем время второй
+		if (mergedStartMs < 0 && cell2.audioStartMs >= 0) {
+			mergedStartMs = cell2.audioStartMs;
+		}
+
+		// Если во второй ячейке нет времени, используем время первой
+		if (mergedEndMs < 0 && cell1.audioEndMs >= 0) {
+			mergedEndMs = cell1.audioEndMs;
+		}
+
+		// Объединяем индексы слов в audioEntries
+		int mergedFirstIdx = cell1.firstWordIndex;
+		int mergedLastIdx = cell2.lastWordIndex;
+
+		// Корректируем индексы, если одна из ячеек пустая
+		if (mergedFirstIdx < 0 && cell2.firstWordIndex >= 0) {
+			mergedFirstIdx = cell2.firstWordIndex;
+		}
+		if (mergedLastIdx < 0 && cell1.lastWordIndex >= 0) {
+			mergedLastIdx = cell1.lastWordIndex;
+		}
+
+		// Обновляем audioEntries: все слова из второй ячейки теперь принадлежат первой
+		if (mergedFirstIdx >= 0 && mergedLastIdx >= 0 &&
+			mergedFirstIdx <= mergedLastIdx &&
+			mergedLastIdx < audioEntries.size()) {
+
+			// Обновляем sentenceIdx для всех слов из второй ячейки
+			for (int i = cell2.firstWordIndex; i <= cell2.lastWordIndex; ++i) {
+				if (i >= 0 && i < audioEntries.size()) {
+					audioEntries[i].sentenceIdx = row1;
+					audioEntries[i].ins = false;  // При слиянии вставки становятся обычными словами
+				}
+			}
+		}
+
+		// Обновляем первую ячейку
+		cell1.text = mergedText;
+		cell1.audioStartMs = mergedStartMs;
+		cell1.audioEndMs = mergedEndMs;
+		cell1.firstWordIndex = mergedFirstIdx;
+		cell1.lastWordIndex = mergedLastIdx;
+
+		// Объединяем флаги excluded: ячейка исключена, только если обе исключены
+		cell1.isExcluded = cell1.isExcluded && cell2.isExcluded;
+
+		// Удаляем вторую ячейку
+		audioCells.removeAt(row2);
+
+		// Обновляем индексы предложений для всех последующих аудио ячеек
+		for (int i = row1 + 1; i < audioCells.size(); ++i) {
+			AudioSentence& sent = audioCells[i];
+			if (sent.firstWordIndex >= 0 && sent.lastWordIndex >= 0) {
+				// Обновляем sentenceIdx в audioEntries для слов этой ячейки
+				for (int j = sent.firstWordIndex; j <= sent.lastWordIndex; ++j) {
+					if (j >= 0 && j < audioEntries.size()) {
+						audioEntries[j].sentenceIdx = i;
+					}
+				}
+			}
+		}
+
+		normalizeRowCount();
+		modified = true;
+
+		// Пересчитываем похожесть для объединённой ячейки
+		if (row1 < sourceCells.size()) {
+			audioCells[row1].audioSim = evaluateSentenceSimilaritySimple(
+				audioCells[row1].text,
+				sourceCells[row1].text
+			);
+		}
+
+		return;
+	}
+}
+
+void Aligner::mergeCells2(int row1, int row2, int column)
 {
 	if (row1 == row2) return;
 	if (row1 > row2) std::swap(row1, row2);
@@ -354,10 +499,12 @@ void Aligner::clear()
 	translatedCells.clear();
 	audioCells.clear();
 	audioEntries.clear();
+	sourceWordsCache.clear();
 	currentSourceFile.clear();
 	currentTranslatedFile.clear();
 	currentAudioTextFile.clear();
 	currentAudioFile.clear();
+	totalAudioSim = 0;
 	modified = false;
 }
 
@@ -764,6 +911,12 @@ double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSe
 	QStringList ruWords = tokenizeWords(ruSentence);
 	if (enWords.isEmpty() || ruWords.isEmpty()) return 0.0;
 		
+	// лемматизация
+	QStringList rwWords;
+	for (const QString &rw : ruWords) {
+		rwWords.append(FuzzyLemmatizer::lemmatize(rw));
+	}
+
 
 	// для каждого английского и английского_токенизированного слова
 	// переводим его в список русских слов и определяем есть ли такие русские слова в ruWords
@@ -776,41 +929,51 @@ double Aligner::lexicalSimilarity(const QString& enSentence, const QString& ruSe
 	for (QString enWord : enWords) {
 
 		qDebug() << enWord;
+		if (enWord == "inch")
+			count = count;
 
 		// если слово напрямую есть среди русских - ок, это какое-то имя собственное
 		if (ruWords.indexOf(enWord) >= 0) {
 			count++;
+			continue;
 		}
 
 		// если перевод слова есть в словаре
 		if (m_dictionary.contains(enWord)) {
 			QString trs = m_dictionary[enWord];
 			qDebug() << trs;
-
 			// выбираем список слов, являющихся переводом данного
 			QStringList trWords = tokenizeWords(trs);
-			if (intersect(ruWords, trWords))
+			if (intersect(ruWords, trWords)) {
 				count++;
+				qDebug() << "@ok2";
+				continue;
+			}
 
 			// если лемматизированный перевод присутствует в русском предложении
-			for (QString &tw : trWords)
-				tw = stemRussian(tw);
-			if (intersect(ruWords, trWords))
+			if (intersect(rwWords, trWords)) {
 				count++;
+				qDebug() << "@ok3";
+				continue;
+			}
 		}
 		// если перевод лемматизированного слова есть в словаре
 		enWord = stemEnglish(enWord);
 		if (m_dictionary.contains(enWord)) {
 			// выбираем список слов, являющихся переводом данного
 			QStringList trWords = tokenizeWords(m_dictionary[enWord]);
-			if (intersect(ruWords, trWords))
+			if (intersect(ruWords, trWords)) {
 				count++;
+				qDebug() << "@ok4";
+				continue;
+			}
 
 			// если лемматизированный перевод присутствует в русском предложении
-			for (QString &tw : trWords)
-				tw = stemRussian(tw);
-			if (intersect(ruWords, trWords))
+			if (intersect(rwWords, trWords)) {
 				count++;
+				qDebug() << "@ok5";
+				continue;
+			}
 		}
 	}
 	   	
@@ -1166,8 +1329,12 @@ void Aligner::rebuildAudioSentences()
 	for (int i = 0; i < audioCells.size(); ++i) {
 		audioCells[i].isExcluded = true;
 		audioCells[i].text = "";
+		audioCells[i].audioStartMs = -1;
+		audioCells[i].audioEndMs = -1;
 		audioCells[i].firstWordIndex = -1;
 		audioCells[i].lastWordIndex = -1;
+		audioCells[i].audioSim = -1.0;
+		audioCells[i].transSim = -1.0;
 	}
 
 	if (audioEntries.isEmpty()) {
@@ -1438,12 +1605,32 @@ MatchResult Aligner::similarity(int enStart, int maxSrc, int audioStart, int max
 	return res;
 }
 
+void Aligner::clearAudioAlignment()
+{
+	// Очищаем аудио ячейки
+	audioCells.clear();
+
+	// Сбрасываем индексы предложений в audioEntries
+	for (int i = 0; i < audioEntries.size(); ++i) {
+		audioEntries[i].sentenceIdx = -1;
+		audioEntries[i].ins = false;
+	}
+
+	// Очищаем кэш исходных слов
+	sourceWordsCache.clear();
+
+	// Сбрасываем статистику
+	totalAudioSim = 0;
+
+	// Не очищаем sourceCells и translatedCells!
+	// Они должны сохраниться
+}
+
 void Aligner::alignAudioToSource()
 {
-	// вызов одного из алгоритмических Aligner'ов
-
 	if (sourceCells.isEmpty() || audioEntries.isEmpty()) return;
 
+	clearAudioAlignment();
 	rebuildSourceWordsCache();	
 	audioCells.clear();
 	normalizeRowCount();

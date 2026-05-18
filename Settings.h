@@ -10,6 +10,7 @@ struct Settings
 	QString recentProjectPath;
 	QString dictPath;
 	QString ffmpegPath;
+	QString endingsPath;
 		
 	QByteArray windowGeometry;
 	QByteArray windowState;

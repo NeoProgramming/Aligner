@@ -89,6 +89,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AudioEntriesViewer.cpp" />
+    <ClCompile Include="FuzzyLemmatizer.cpp" />
     <ClCompile Include="Settings.cpp" />
     <ClCompile Include="tools.cpp" />
     <QtRcc Include="MainWindow.qrc" />
@@ -101,6 +102,7 @@
     <ClInclude Include="aligner.h" />
     <ClInclude Include="alignment.h" />
     <QtMoc Include="AudioEntriesViewer.h" />
+    <ClInclude Include="FuzzyLemmatizer.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="tools.h" />
   </ItemGroup>

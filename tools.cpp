@@ -6,6 +6,7 @@
 #include <QSet>
 #include <QRegularExpression>
 
+
 // aligner.cpp
 QString debugEnWords(IAlignmentEngine *engine, int start, int count)
 {
@@ -62,22 +63,22 @@ QString stemRussian(const QString& word)
 	QString result = word.toLower();
 
 	// Простейшие правила (нужно расширять)
-	if (result.endsWith("ами")) result.chop(3);
-	else if (result.endsWith("ями")) result.chop(3);
-	else if (result.endsWith("ов")) result.chop(2);
-	else if (result.endsWith("ев")) result.chop(2);
-	else if (result.endsWith("ем")) result.chop(2);
-	else if (result.endsWith("ом")) result.chop(2);
-	else if (result.endsWith("ой")) result.chop(2);
-	else if (result.endsWith("ей")) result.chop(2);
-	else if (result.endsWith("ах")) result.chop(2);
-	else if (result.endsWith("ях")) result.chop(2);
-	else if (result.endsWith("а")) result.chop(1);
-	else if (result.endsWith("у")) result.chop(1);
-	else if (result.endsWith("е")) result.chop(1);
-	else if (result.endsWith("и")) result.chop(1);
-	else if (result.endsWith("ы")) result.chop(1);
-	else if (result.endsWith("ь")) result.chop(1);
+	if      (result.endsWith(QString::fromLocal8Bit("ами"))) result.chop(3);
+	else if (result.endsWith(QString::fromLocal8Bit("ями"))) result.chop(3);
+	else if (result.endsWith(QString::fromLocal8Bit("ов"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ев"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ем"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ом"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ой"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ей"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ах"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("ях"))) result.chop(2);
+	else if (result.endsWith(QString::fromLocal8Bit("а"))) result.chop(1);
+	else if (result.endsWith(QString::fromLocal8Bit("у"))) result.chop(1);
+	else if (result.endsWith(QString::fromLocal8Bit("е"))) result.chop(1);
+	else if (result.endsWith(QString::fromLocal8Bit("и"))) result.chop(1);
+	else if (result.endsWith(QString::fromLocal8Bit("ы"))) result.chop(1);
+	else if (result.endsWith(QString::fromLocal8Bit("ь"))) result.chop(1);
 
 	return result;
 }

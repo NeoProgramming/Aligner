@@ -85,6 +85,7 @@ public:
 	// Операции с ячейками (независимо для каждого столбца)
 	void splitCell(int row, int cursorPos, int column);
 	void mergeCells(int row1, int row2, int column);
+	void mergeCells2(int row1, int row2, int column); // old
 	void excludeCell(int row, int column);
 	void setCellText(int row, int column, const QString& text);
 
@@ -103,6 +104,7 @@ public:
 	// Вспомогательные
 	int rowCount() const;
 	void clear();
+	void clearAudioAlignment();
 
 	bool moveAudioWordsToPrev(int sentenceIndex, int wordOffset);
 	bool moveAudioWordsToNext(int sentenceIndex, int wordOffset);
