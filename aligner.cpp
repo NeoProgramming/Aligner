@@ -465,6 +465,12 @@ void Aligner::mergeCells2(int row1, int row2, int column)
 	modified = true;
 }
 
+void Aligner::highlightCell(int row, bool highlight)
+{
+	if (row < audioCells.size())
+		audioCells[row].isHighlighted = highlight;
+}
+
 void Aligner::excludeCell(int row, int column)
 {
 	if (column < 0 || column >= 2) return;
@@ -1037,6 +1043,7 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		int endMs = (i < audioCells.size()) ? audioCells[i].audioEndMs : -1;
 		int firstIdx = (i < audioCells.size()) ? audioCells[i].firstWordIndex : -1;
 		int lastIdx = (i < audioCells.size()) ? audioCells[i].lastWordIndex : -1;
+		bool isHighlighted = (i < audioCells.size()) ? audioCells[i].isHighlighted : false;
 
 		// Экранирование спецсимволов? Можно не делать, если доверяем данным
 		stream << "source: " << src << "\n";
@@ -1049,6 +1056,7 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		stream << "end_ms: " << endMs << "\n";
 		stream << "first: " << firstIdx << "\n";
 		stream << "last: " << lastIdx << "\n";
+		stream << "highlight: " << (isHighlighted ? "true" : "false") << "\n";
 		stream << "\n";
 	}
 
@@ -1077,6 +1085,7 @@ bool Aligner::loadProjectTxt(const QString& filename)
 	bool currentEnExcl = false, currentRuExcl = false, currentAudioExcl = false;
 	int currentStartMs = -1, currentEndMs = -1;
 	int currentFirstIdx = -1, currentLastIdx = -1;
+	bool currentHighlighted = false;
 
 	// Флаг, что мы в секции аудио энтрисов
 	bool inAudioEntriesSection = false;
@@ -1105,6 +1114,7 @@ bool Aligner::loadProjectTxt(const QString& filename)
 				audioCell.audioEndMs = currentEndMs;
 				audioCell.firstWordIndex = currentFirstIdx;
 				audioCell.lastWordIndex = currentLastIdx;
+				audioCell.isHighlighted = currentHighlighted;
 				audioCells.append(audioCell);
 
 				// Сбрасываем для следующего блока
@@ -1185,6 +1195,7 @@ bool Aligner::loadProjectTxt(const QString& filename)
 		else if (key == "end_ms") currentEndMs = value.toInt();
 		else if (key == "first") currentFirstIdx = value.toInt();
 		else if (key == "last") currentLastIdx = value.toInt();
+		else if (key == "highlight") currentHighlighted = (value == "true");
 	}
 
 	// Сохраняем последний блок, если есть
@@ -1206,6 +1217,7 @@ bool Aligner::loadProjectTxt(const QString& filename)
 		audioCell.audioEndMs = currentEndMs;
 		audioCell.firstWordIndex = currentFirstIdx;
 		audioCell.lastWordIndex = currentLastIdx;
+		audioCell.isHighlighted = currentHighlighted;
 		audioCells.append(audioCell);
 	}
 
@@ -1631,10 +1643,9 @@ void Aligner::alignAudioToSource()
 	if (sourceCells.isEmpty() || audioEntries.isEmpty()) return;
 
 	clearAudioAlignment();
-	rebuildSourceWordsCache();	
-	audioCells.clear();
 	normalizeRowCount();
-	
+	rebuildSourceWordsCache();	
+			
 	alignAudio();	
 
 	normalizeRowCount();

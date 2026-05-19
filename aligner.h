@@ -87,6 +87,7 @@ public:
 	void mergeCells(int row1, int row2, int column);
 	void mergeCells2(int row1, int row2, int column); // old
 	void excludeCell(int row, int column);
+	void highlightCell(int row, bool highlight);
 	void setCellText(int row, int column, const QString& text);
 
 	// Выравнивание

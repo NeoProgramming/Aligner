@@ -41,6 +41,8 @@ private slots:
 	void onMergeWithPrevious();
 	void onMergeWithNext();
 	void onExcludeRow();
+	void onSetHighlightRow();
+	void onClearHighlightRow();
 	void onMergeAllWithPrevious();
 	void onMergeAllWithNext();
 

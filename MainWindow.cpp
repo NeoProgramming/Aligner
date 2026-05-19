@@ -258,13 +258,16 @@ void MainWindow::syncTableFromAligner()
 		bool translExcl = (i < m_aligner.translatedCells.size()) && m_aligner.translatedCells[i].isExcluded;
 		bool audioExcl = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isExcluded;
 		bool audioErr = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isError;
+		bool highlighted = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isHighlighted;
 
 		// Цвета фона
-		QColor sourceBg = sourceExcl ? Qt::lightGray : Qt::white;
-		QColor targetBg = translExcl ? Qt::lightGray : Qt::white;
+		QColor sourceBg = sourceExcl ? Qt::lightGray : highlighted ? Qt::yellow : Qt::white;
+		QColor targetBg = translExcl ? Qt::lightGray : highlighted ? Qt::yellow : Qt::white;
 		QColor audioBg = 
 			audioErr ? Qt::red :
-			audioExcl ? Qt::lightGray : Qt::white;
+			audioExcl ? Qt::lightGray : 
+			highlighted ? Qt::yellow :
+			Qt::white;
 		QColor infoBg = Qt::lightGray;  // Отладочный столбец всегда серый
 
 		// Обновляем ячейки с правильным приведением типов
@@ -458,6 +461,31 @@ void MainWindow::onMergeAllWithNext()
 	statusBar()->showMessage(QString("Merged"), 2000);
 }
 
+void MainWindow::onSetHighlightRow()
+{
+	QList<QTableWidgetSelectionRange> ranges = m_table->selectedRanges();
+	for (const QTableWidgetSelectionRange& range : ranges) {
+		for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
+			m_aligner.highlightCell(row, true);
+		}
+	}
+
+	syncTableFromAligner();
+	setModified(true);
+}
+
+void MainWindow::onClearHighlightRow()
+{
+	QList<QTableWidgetSelectionRange> ranges = m_table->selectedRanges();
+	for (const QTableWidgetSelectionRange& range : ranges) {
+		for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
+			m_aligner.highlightCell(row, false);
+		}
+	}
+
+	syncTableFromAligner();
+	setModified(true);
+}
 
 void MainWindow::onExcludeRow()
 {
@@ -616,6 +644,8 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	menu.addSeparator();
 
 	menu.addAction("Exclude", this, &MainWindow::onExcludeRow);
+	menu.addAction("Set Highlight", this, &MainWindow::onSetHighlightRow);
+	menu.addAction("Clear Highlight", this, &MainWindow::onClearHighlightRow);
 	menu.addSeparator();
 	menu.addAction("Copy", [this]() {
 		if (m_table->currentItem()) {

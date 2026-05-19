@@ -57,11 +57,13 @@ struct TextSentence {
 	QString text;
 	bool isExcluded;  // можно исключить отдельную ячейку
 	bool isError;
+	bool isHighlighted;  // Новая отметка для всей строки
 
 	void clear() {
 		text = "";
 		isExcluded = false;
 		isError = false;
+		isHighlighted = false;  // Инициализация
 	}
 
 	TextSentence() {
