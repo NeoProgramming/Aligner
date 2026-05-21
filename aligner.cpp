@@ -231,16 +231,23 @@ void Aligner::normalizeRowCount()
 		audioCells.append(AudioSentence());
 	}
 
-	// 2. Удаляем пустые строки с конца
+	// 2. Удаляем пустые строки, полный проход с конца к началу
 	for (int i = sourceCells.size() - 1; i >= 0; --i) {
 		bool enEmpty = sourceCells[i].text.isEmpty();
 		bool ruEmpty = translatedCells[i].text.isEmpty();
 		bool audioEmpty = audioCells[i].text.isEmpty();
 
 		if (enEmpty && ruEmpty && audioEmpty) {
+			// удаляем строку
 			sourceCells.removeAt(i);
 			translatedCells.removeAt(i);
 			audioCells.removeAt(i);
+			// уменьшаем все индексы большие i и обнуляем равные i в audioEntires
+			for (auto &e : audioEntries)
+				if (e.sentenceIdx == i)
+					e.sentenceIdx = -1;
+				else if (e.sentenceIdx > i)
+					e.sentenceIdx--;
 		}
 	}
 
