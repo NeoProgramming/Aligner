@@ -43,6 +43,7 @@ private slots:
 	void onExcludeRow();
 	void onSetHighlightRow();
 	void onClearHighlightRow();
+	void onSetHighlightUpperRows();
 	void onMergeAllWithPrevious();
 	void onMergeAllWithNext();
 
@@ -70,6 +71,7 @@ private slots:
 	void onMoveAudioWordsToPrev();
 	void onMoveAudioWordsToNext();
 	void onSplitSentence();
+	void onRemoveAudioSentence();
 
 	// Context menu
 	void showContextMenu(const QPoint& pos);

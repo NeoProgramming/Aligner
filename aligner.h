@@ -28,7 +28,7 @@ public:
 	int sourceWindowSize(int srcStart);
 	int audioWindowSize(int audioStart, int sourceWindow);
 	MatchResult similarity(int enStart, int maxSrc, int audioStart, int maxAud);
-public:
+
 	Aligner();
 
 	bool saveProjectTxt(const QString& filename);
@@ -37,6 +37,8 @@ public:
 	void clearSource();
 	void clearTranslated();
 	void clearAudio();
+
+	bool removeAudioSentence(int row, bool force = false);
 	
 	// Данные (публичные поля для простоты)
 	Settings cfg;
@@ -78,6 +80,7 @@ public:
 	void rebuildAudioSentences();
 	void insertSentence(const QStringList &currentWords, int currentSentenceIdx, bool currentIsIns, 
 		int currentStartMs, int currentEndMs, int firstWordIdx, int lastWordIdx);
+	void rebuildAudioEntires();
 
 	// Разбивка текста
 	QVector<QString> splitIntoSentences(const QString& text);
@@ -88,6 +91,7 @@ public:
 	void mergeCells2(int row1, int row2, int column); // old
 	void excludeCell(int row, int column);
 	void highlightCell(int row, bool highlight);
+	bool isHighlightedRow(int row);
 	void setCellText(int row, int column, const QString& text);
 
 	// Выравнивание

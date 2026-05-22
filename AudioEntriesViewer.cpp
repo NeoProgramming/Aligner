@@ -1,8 +1,11 @@
 #include "AudioEntriesViewer.h"
 #include <QDebug>
+#include <QMessageBox>
+#include "aligner.h"
 
-AudioEntriesViewer::AudioEntriesViewer(QWidget *parent)
+AudioEntriesViewer::AudioEntriesViewer(Aligner *aligner, QWidget *parent)
 	: QDialog(parent)
+	, m_aligner(aligner)
 {
 	setupUI();
 	setWindowTitle("Audio Entries Viewer");
@@ -57,21 +60,26 @@ void AudioEntriesViewer::setupTable()
 	m_table->setColumnWidth(2, 80);   // End Ms
 	m_table->setColumnWidth(3, 100);  // Sentence Idx
 	m_table->setColumnWidth(4, 80);   // Insertion
+
+	connect(m_table, &QTableWidget::cellDoubleClicked,
+		this, &AudioEntriesViewer::onShowInfo);
 }
 
-void AudioEntriesViewer::updateEntries(const QVector<AudioEntry>& entries)
+void AudioEntriesViewer::updateEntries()
 {
-	m_table->setRowCount(entries.size());
-	m_statusLabel->setText(QString("Audio entries: %1").arg(entries.size()));
+	if (!m_aligner)
+		return;
+	m_table->setRowCount(m_aligner->audioEntries.size());
+	m_statusLabel->setText(QString("Audio entries: %1").arg(m_aligner->audioEntries.size()));
 	
 	// Настройка вертикальных заголовков (номера строк с 0)
-	for (int i = 0; i < entries.size(); ++i) {
+	for (int i = 0; i < m_aligner->audioEntries.size(); ++i) {
 		QTableWidgetItem* headerItem = new QTableWidgetItem(QString::number(i));
 		m_table->setVerticalHeaderItem(i, headerItem);
 	}
 
-	for (int i = 0; i < entries.size(); ++i) {
-		const AudioEntry& entry = entries[i];
+	for (int i = 0; i < m_aligner->audioEntries.size(); ++i) {
+		const AudioEntry& entry = m_aligner->audioEntries[i];
 
 		// Слово
 		QTableWidgetItem* wordItem = new QTableWidgetItem(entry.text);
@@ -111,4 +119,56 @@ void AudioEntriesViewer::clear()
 	m_table->clearContents();
 	m_table->setRowCount(0);
 	m_statusLabel->setText("Audio entries: 0");
+}
+
+void AudioEntriesViewer::onShowInfo()
+{
+	int row = m_table->currentRow();
+	// Получаем sentenceIdx из таблицы
+	QTableWidgetItem* sentItem = m_table->item(row, 3);  // Столбец 3 = Sentence Idx
+	if (!sentItem) return;
+
+	int sentenceIdx = sentItem->text().toInt();
+	if (sentenceIdx < 0) {
+		QMessageBox::information(this, "Info",
+			"This audio word is not assigned to any sentence (insertion or pending)");
+		return;
+	}
+	if (m_aligner && sentenceIdx >= m_aligner->sourceCells.size()) {
+		QMessageBox::information(this, "Info",
+			"This audio word is not assigned to any sentence (insertion or pending)");
+		return;
+	}
+
+	// Получаем исходное предложение
+	QString sourceText;
+	if (m_aligner) {
+		sourceText = m_aligner->sourceCells[sentenceIdx].text;
+	}
+
+	if (sourceText.isEmpty()) {
+		QMessageBox::information(this, "Info",
+			QString("No source text found for sentence %1").arg(sentenceIdx));
+		return;
+	}
+
+	// Получаем аудио слово
+	QTableWidgetItem* wordItem = m_table->item(row, 0);
+	QString word = wordItem ? wordItem->text() : "";
+
+	// Показываем диалог
+	QMessageBox msgBox(this);
+	msgBox.setWindowTitle(QString("Source Sentence for \"%1\"").arg(word));
+	msgBox.setText(QString("Sentence %1:\n\n%2").arg(sentenceIdx).arg(sourceText));
+	msgBox.setIcon(QMessageBox::Information);
+	msgBox.setStandardButtons(QMessageBox::Ok);
+
+	// Делаем текст выделяемым и копируемым
+	QSpacerItem* spacer = new QSpacerItem(500, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+	QGridLayout* layout = (QGridLayout*)msgBox.layout();
+	if (layout) {
+		layout->addItem(spacer, layout->rowCount(), 0, 1, layout->columnCount());
+	}
+
+	msgBox.exec();
 }

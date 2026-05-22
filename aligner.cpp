@@ -251,7 +251,8 @@ void Aligner::normalizeRowCount()
 		}
 	}
 
-	// 3. Дополнительная валидация для аудио индексов
+	// 3. Дополнительная валидация для аудио индексов 
+	// по идее никакого влияния не оказывает
 	for (int i = 0; i < audioCells.size(); ++i) {
 		AudioSentence& sent = audioCells[i];
 		if (!sent.isExcluded && !sent.text.isEmpty()) {
@@ -472,9 +473,16 @@ void Aligner::mergeCells2(int row1, int row2, int column)
 	modified = true;
 }
 
+bool Aligner::isHighlightedRow(int row)
+{
+	if (row >= 0 && row < audioCells.size())
+		return audioCells[row].isHighlighted;
+	return false;
+}
+
 void Aligner::highlightCell(int row, bool highlight)
 {
-	if (row < audioCells.size())
+	if (row >= 0 && row < audioCells.size())
 		audioCells[row].isHighlighted = highlight;
 }
 
@@ -1338,10 +1346,21 @@ void Aligner::insertSentence(const QStringList &currentWords, int currentSentenc
 	}	
 }
 
+void Aligner::rebuildAudioEntires()
+{
+	// если в audioCells стоят корректные индексы слов, а в audioEntires некорректные индексы предложений
+	int an = audioEntries.size();
+	for (int i = 0; i < audioCells.size(); ++i) {
+		int fi = audioCells[i].firstWordIndex;
+		int ei = audioCells[i].lastWordIndex;
+		for (int j = fi; j>=0 && j<an && j <= ei; j++)			
+			audioEntries[j].sentenceIdx = i;
+	}
+	modified = true;
+}
+
 void Aligner::rebuildAudioSentences()
 {
-	// Сбрасываем индексы в audioEntries
-
 	// 1. Инициализация: audioCells такого же размера, как sourceCells
 	audioCells.clear();
 	audioCells.resize(sourceCells.size());
@@ -1777,3 +1796,51 @@ void Aligner::updateAudioSentenceFromEntries(int sentenceIndex)
 	sent.isExcluded = false;
 }
 
+
+bool Aligner::removeAudioSentence(int row, bool force)
+{
+	// Проверяем границы
+	if (row < 0 || row >= audioCells.size()) {
+		qWarning() << "removeAudioSentence: invalid row" << row;
+		return false;
+	}
+
+	AudioSentence& sent = audioCells[row];
+
+	// Проверяем, есть ли валидные индексы
+	bool hasValidIndices = (sent.firstWordIndex >= 0 && sent.lastWordIndex >= 0 &&
+		sent.firstWordIndex <= sent.lastWordIndex &&
+		sent.lastWordIndex < audioEntries.size());
+
+	// Если есть валидные индексы и нет принудительного удаления - спрашиваем
+	if (hasValidIndices && !force) {
+		// Возвращаем false, UI сам спросит пользователя
+		return false;
+	}
+
+	// Удаляем привязку слов к этому предложению из audioEntries
+	if (hasValidIndices) {
+		for (int i = sent.firstWordIndex; i <= sent.lastWordIndex; ++i) {
+			if (i >= 0 && i < audioEntries.size()) {
+				audioEntries[i].sentenceIdx = -1;
+				audioEntries[i].ins = false;
+			}
+		}
+	}
+
+	// Удаляем ячейку
+	audioCells.removeAt(row);
+
+	// Корректируем индексы в audioEntries для всех последующих предложений
+	for (auto& entry : audioEntries) {
+		if (entry.sentenceIdx > row) {
+			entry.sentenceIdx--;
+		}
+	}
+
+	// Нормализуем количество строк (синхронизируем с sourceCells и translatedCells)
+	normalizeRowCount();
+
+	modified = true;
+	return true;
+}

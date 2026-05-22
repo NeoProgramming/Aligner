@@ -40,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent)
 	setWindowTitle("Text Alignment Tool");
 	resize(1200, 700);
 
-	m_audioEntriesViewer = new AudioEntriesViewer(this);
+	m_audioEntriesViewer = new AudioEntriesViewer(&m_aligner, this);
 }
 
 MainWindow::~MainWindow()
@@ -51,20 +51,7 @@ MainWindow::~MainWindow()
 // Метод для обновления и показа окна
 void MainWindow::showAudioEntriesViewer()
 {
-	QVector<AudioEntry> viewEntries;
-	viewEntries.reserve(m_aligner.audioEntries.size());
-
-	for (const auto& entry : m_aligner.audioEntries) {
-		AudioEntry viewEntry;
-		viewEntry.text = entry.text;
-		viewEntry.startMs = entry.startMs;
-		viewEntry.endMs = entry.endMs;
-		viewEntry.sentenceIdx = entry.sentenceIdx;
-		viewEntry.ins = entry.ins;
-		viewEntries.append(viewEntry);
-	}
-
-	m_audioEntriesViewer->updateEntries(viewEntries);
+	m_audioEntriesViewer->updateEntries();
 	m_audioEntriesViewer->show();
 	m_audioEntriesViewer->raise();  // Поднять окно на передний план
 	m_audioEntriesViewer->activateWindow();  // Активировать окно
@@ -221,6 +208,7 @@ void MainWindow::onClearAudio()
 void MainWindow::onNormalizeRows()
 {
 	m_aligner.normalizeRowCount();
+	m_aligner.rebuildAudioEntires();
 	syncTableFromAligner();
 }
 
@@ -474,6 +462,25 @@ void MainWindow::onSetHighlightRow()
 	setModified(true);
 }
 
+void MainWindow::onSetHighlightUpperRows()
+{
+	// подсветить все строки вверх от текущей до первой уже подсвеченной
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Cannot merge last row with next");
+		return;
+	}
+
+	for (int r = row; r >= 0; r--) {
+		if (m_aligner.isHighlightedRow(r))
+			break;
+		m_aligner.highlightCell(r, true);
+	}
+
+	syncTableFromAligner();
+	setModified(true);
+}
+
 void MainWindow::onClearHighlightRow()
 {
 	QList<QTableWidgetSelectionRange> ranges = m_table->selectedRanges();
@@ -629,6 +636,8 @@ void MainWindow::showContextMenu(const QPoint& pos)
 		menu.addSeparator();
 		menu.addAction("Split this audiosentence", this, &MainWindow::onSplitSentence);
 		menu.addSeparator();
+		// Команда для удаления всех пустых аудиопредложений
+		menu.addAction("Remove audio sentence", this, &MainWindow::onRemoveAudioSentence);
 	}
 	else {
 		menu.addAction("Edit", this, &MainWindow::onEditCell);
@@ -646,6 +655,7 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	menu.addAction("Exclude", this, &MainWindow::onExcludeRow);
 	menu.addAction("Set Highlight", this, &MainWindow::onSetHighlightRow);
 	menu.addAction("Clear Highlight", this, &MainWindow::onClearHighlightRow);
+	menu.addAction("Set Highlight above", this, &MainWindow::onSetHighlightUpperRows);
 	menu.addSeparator();
 	menu.addAction("Copy", [this]() {
 		if (m_table->currentItem()) {
@@ -898,6 +908,55 @@ void MainWindow::onMoveAudioWordsToPrev()
 	else {
 		QMessageBox::warning(this, "Error", "Failed to move words. Check boundaries.");
 	}
+}
+
+void MainWindow::onRemoveAudioSentence()
+{
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Error row index");
+		return;
+	}
+
+	const AudioSentence& sent = m_aligner.audioCells[row];
+	bool hasValidIndices = (sent.firstWordIndex >= 0 && sent.lastWordIndex >= 0 &&
+		sent.firstWordIndex <= sent.lastWordIndex &&
+		sent.lastWordIndex < m_aligner.audioEntries.size());
+
+	// Если есть валидные индексы, спрашиваем подтверждение
+	if (hasValidIndices) {
+		int wordCount = sent.lastWordIndex - sent.firstWordIndex + 1;
+		QMessageBox::StandardButton reply = QMessageBox::question(
+			this,
+			"Remove Audio Sentence",
+			QString("This audio sentence contains %1 word(s) mapped to audio entries.\n"
+				"Removing it will disconnect these words from any sentence.\n\n"
+				"Are you sure you want to remove this audio sentence?")
+			.arg(wordCount),
+			QMessageBox::Yes | QMessageBox::No
+		);
+
+		if (reply != QMessageBox::Yes) {
+			return;
+		}
+
+		// Принудительное удаление (пользователь подтвердил)
+		if (!m_aligner.removeAudioSentence(row, true)) {
+			QMessageBox::warning(this, "Error", "Failed to remove audio sentence");
+			return;
+		}
+	}
+	else {
+		// Нет валидных индексов - удаляем без вопросов
+		if (!m_aligner.removeAudioSentence(row, false)) {
+			QMessageBox::warning(this, "Error", "Failed to remove audio sentence");
+			return;
+		}
+	}
+
+	syncTableFromAligner();
+	setModified(true);
+	statusBar()->showMessage("Audio sentence removed", 2000);
 }
 
 void MainWindow::onSplitSentence()
