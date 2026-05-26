@@ -767,7 +767,7 @@ void Aligner::calcAudioSimilarity()
 		totalAudioSim /= n;
 }
 
-bool Aligner::prepareSplitting(QString &outputDirectory)
+bool Aligner::prepareFilePath(bool gen, int i, QString &outputFilePath)
 {
 	// Проверяем входной файл
 	QFileInfo inputInfo(currentAudioFile);
@@ -776,7 +776,7 @@ bool Aligner::prepareSplitting(QString &outputDirectory)
 		return false;
 	}
 
-	outputDirectory = QFileInfo(currentAudioFile).absolutePath();
+	QString outputDirectory = QFileInfo(currentAudioFile).absolutePath();
 
 	// Создаем выходную директорию, если её нет
 	QDir dir;
@@ -785,11 +785,25 @@ bool Aligner::prepareSplitting(QString &outputDirectory)
 		return false;
 	}
 
+	// Формируем имя выходного файла
+	QString outputFileName = QString(gen ? "%1_%2t.wav" : "%1_%2.mp3")
+		.arg(QFileInfo(currentAudioFile).baseName())
+		.arg(i, 4, 10, QChar('0')); // нумерация с 0001
+
+	outputFilePath = QDir(outputDirectory)
+		.filePath(outputFileName);
+
 	return true;
 }
 
-bool Aligner::performSplitting(int i, const QString &outputDirectory)
+bool Aligner::splitAudioSentence(int i)
 {
+	QString outputFilePath;
+	if (!prepareFilePath(false, i, outputFilePath))
+		return false;
+
+	if (i < 0 || i >= audioCells.size())
+		return false;
 	const AudioSentence& cell = audioCells[i];
 
 	// Пропускаем исключенные или пустые ячейки
@@ -805,16 +819,7 @@ bool Aligner::performSplitting(int i, const QString &outputDirectory)
 			<< "start:" << cell.audioStartMs
 			<< "end:" << cell.audioEndMs;
 		return false;
-	}
-	
-
-	// Формируем имя выходного файла
-	QString outputFileName = QString("%1_%2.mp3")
-		.arg(QFileInfo(currentAudioFile).baseName())
-		.arg(i, 4, 10, QChar('0')); // нумерация с 0001
-
-	QString outputFilePath = QDir(outputDirectory)
-		.filePath(outputFileName);
+	}	
 
 	// Конвертируем миллисекунды в формат времени для FFmpeg (HH:MM:SS.xxx)
 	QString startTime = msToTimeFormat(cell.audioStartMs + 200);	// делаем небольшой запас т.к. иначе обрезка по самому концу слова
@@ -849,39 +854,79 @@ bool Aligner::performSplitting(int i, const QString &outputDirectory)
 
 	// Проверяем результат
 	if (ffmpeg.exitCode() == 0 && QFile::exists(outputFilePath)) {
-		qDebug() << "Successfully created:" << outputFileName;
+		qDebug() << "Successfully created:" << outputFilePath;
 		
 		// Можно добавить теги ID3
 	//@	addMetadataToMp3(outputFilePath, cell.text, i);
 	}
 	else {
-		qDebug() << "Failed to create:" << outputFileName;
+		qDebug() << "Failed to create:" << outputFilePath;
 		qDebug() << "FFmpeg error:" << ffmpeg.readAllStandardError();
 	}
 
 	return true;
 }
 
-bool Aligner::splitAudioSentenceToMp3(int i)
+bool Aligner::generateAudioSentence(int i)
 {
-	QString outputDirectory;
-	if (!prepareSplitting(outputDirectory))
+	QString outputFilePath;
+	if (!prepareFilePath(true, i, outputFilePath))
 		return false;
-	return performSplitting(i, outputDirectory);
+
+	if (i < 0 || i >= translatedCells.size())
+		return false;
+	const TextSentence& cell = translatedCells[i];
+
+	// Пропускаем исключенные или пустые ячейки
+	if (cell.isExcluded) {
+		qDebug() << "Skipping excluded cell" << i;
+		return true;
+	}
+	
+
+	// Формируем команду balcon
+	QStringList balconArgs;
+	// Выбираем текст (можно передать и из файла, и как строку)
+	balconArgs << "-t" << cell.text;
+	// Задаем выходной файл
+	balconArgs << "-w" << outputFilePath;
+	// (Необязательно) Выбираем голос
+	balconArgs << "-n" << "Irina";
+	// (Необязательно) Настраиваем качество
+	balconArgs << "-fr" << "44";
+
+	QProcess balcon;
+	balcon.start(cfg.balconPath, balconArgs);
+
+	if (!balcon.waitForStarted(3000)) {
+		qDebug() << "Failed to start balcon for cell" << i;
+		return false;
+	}
+
+	if (!balcon.waitForFinished(60000)) { // таймаут 60 секунд
+		qDebug() << "balcon timeout for cell" << i;
+		balcon.kill();
+		return false;
+	}
+
+	// Проверяем результат
+	if (balcon.exitCode() != 0 || !QFile::exists(outputFilePath)) {
+		qDebug() << "Failed to create:" << outputFilePath;
+		qDebug() << "FFmpeg error:" << balcon.readAllStandardError();
+		return false;
+	}
+
+	qDebug() << "Successfully created:" << outputFilePath;
+	return false;
 }
 
-bool Aligner::splitAudioToMp3()
+bool Aligner::splitAudio()
 {
-	QString outputDirectory;
-	if (!prepareSplitting(outputDirectory))
-		return false;
-		
 	int successCount = 0;
-	int totalValidCells = 0;
 
 	// Перебираем все ячейки
 	for (int i = 0; i < audioCells.size(); ++i) {
-		if (performSplitting(i, outputDirectory))
+		if (splitAudioSentence(i))
 			successCount++;
 	}
 
@@ -889,7 +934,19 @@ bool Aligner::splitAudioToMp3()
 	return  true;
 }
 
+bool Aligner::generateAudio()
+{
+	int successCount = 0;
 
+	// Перебираем все ячейки
+	for (int i = 0; i < audioCells.size(); ++i) {
+		if (generateAudioSentence(i))
+			successCount++;
+	}
+
+	qDebug() << "Generation completed. Success:" << successCount;
+	return  true;
+}
 
 void Aligner::loadDictionary(const QString& filename)
 {

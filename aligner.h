@@ -98,11 +98,13 @@ public:
 	void alignTranslatedToSource();
 	void alignAudioToSource();
 
-	bool splitAudioToMp3();
-	bool splitAudioSentenceToMp3(int i);
-	bool prepareSplitting(QString &outputDirectory);
-	bool performSplitting(int i, const QString &outputDirectory);
-		
+	// Разрезка и Генерация
+	bool prepareFilePath(bool gen, int i, QString &outputFilePath);
+	bool splitAudio();
+	bool splitAudioSentence(int i);	
+	bool generateAudio();
+	bool generateAudioSentence(int i);
+			
 	// Нормализация количества строк
 	void normalizeRowCount();
 	

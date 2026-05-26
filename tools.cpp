@@ -5,7 +5,9 @@
 #include <QDebug>
 #include <QSet>
 #include <QRegularExpression>
-
+#include <QUrl>
+#include <QDesktopServices>
+#include <QMessageBox>
 
 // aligner.cpp
 QString debugEnWords(IAlignmentEngine *engine, int start, int count)
@@ -285,4 +287,18 @@ bool intersect(const QStringList& list1, const QStringList& list2) {
 		}
 	}
 	return false;
+}
+
+void playAudioFile(const QString& filePath)
+{
+	// Преобразуем путь в URL с схемой "file://"
+	QUrl fileUrl = QUrl::fromLocalFile(filePath);
+
+	// Открываем файл в стандартном приложении
+	bool success = QDesktopServices::openUrl(fileUrl);
+
+	if (!success) {
+		QMessageBox::warning(nullptr, "Ошибка",
+			"Не удалось открыть аудиофайл:\n" + filePath);
+	}
 }

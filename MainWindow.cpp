@@ -63,7 +63,7 @@ void MainWindow::setupUI()
 	m_table->setColumnCount(4);
 	m_table->setHorizontalHeaderLabels(QStringList()
 		<< "Source Text"
-		<< "Target Text"
+		<< "Translated Text"
 		<< "Audio Text"
 		<< "Info");
 
@@ -154,8 +154,8 @@ void MainWindow::createMenuBar()
 	toolsMenu->addAction("Recalc statistics", this, &MainWindow::onRecalc);
 	
 	toolsMenu->addSeparator();
-	toolsMenu->addAction("Split MP3 by Rows", this, &MainWindow::onSplitAudio);
-	toolsMenu->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
+	toolsMenu->addAction("Split Audio by Rows", this, &MainWindow::onSplitAudio);
+	toolsMenu->addAction("Generate Audio", this, &MainWindow::onGenerateAudio);
 	toolsMenu->addSeparator();
 	toolsMenu->addAction("Statistics", this, &MainWindow::onStat);
 }
@@ -176,8 +176,8 @@ void MainWindow::createToolBar()
 	toolbar->addAction("Merge with Prev", this, &MainWindow::onMergeWithPrevious);
 	toolbar->addAction("Merge with Next", this, &MainWindow::onMergeWithNext);
 	toolbar->addSeparator();
-	toolbar->addAction("Split MP3", this, &MainWindow::onSplitAudio);
-	toolbar->addAction("Generate MP3", this, &MainWindow::onGenerateAudio);
+	toolbar->addAction("Split Audio", this, &MainWindow::onSplitAudio);
+	toolbar->addAction("Generate Audio", this, &MainWindow::onGenerateAudio);
 	toolbar->addSeparator();
 	toolbar->addAction("Show Audio Entires", this, &MainWindow::onShowAudioEntires);
 }
@@ -312,7 +312,7 @@ void MainWindow::onLoadSource()
 
 void MainWindow::onLoadTranslated()
 {
-	QString filename = QFileDialog::getOpenFileName(this, "Load Target Text",
+	QString filename = QFileDialog::getOpenFileName(this, "Load Translated Text",
 		QString(), "Text files (*.txt);;All files (*.*)");
 	if (filename.isEmpty()) return;
 
@@ -611,14 +611,14 @@ void MainWindow::onSplitAudio()
 		return;
 	}
 	
-	m_aligner.splitAudioToMp3();
+	m_aligner.splitAudio();
 	
 	statusBar()->showMessage(QString("Audio file splitted"), 3000);
 }
 
 void MainWindow::onGenerateAudio()
 {
-
+	m_aligner.generateAudio();
 }
 
 
@@ -635,6 +635,7 @@ void MainWindow::showContextMenu(const QPoint& pos)
 		menu.addAction("Move words to next sentence", this, &MainWindow::onMoveAudioWordsToNext);
 		menu.addSeparator();
 		menu.addAction("Split this audiosentence", this, &MainWindow::onSplitSentence);
+		menu.addAction("Play this audiosentence", this, &MainWindow::onPlayAudioSentence);
 		menu.addSeparator();
 		// Команда для удаления всех пустых аудиопредложений
 		menu.addAction("Remove audio sentence", this, &MainWindow::onRemoveAudioSentence);
@@ -646,6 +647,11 @@ void MainWindow::showContextMenu(const QPoint& pos)
 		menu.addAction("Merge with previous", this, &MainWindow::onMergeWithPrevious);
 		menu.addAction("Merge with next", this, &MainWindow::onMergeWithNext);
 		menu.addSeparator();
+		if (index.column() == 1) {
+			menu.addAction("Generate this TTS sentence", this, &MainWindow::onGenerateSentence);
+			menu.addAction("Play this TTS sentence", this, &MainWindow::onPlayTransSentence);
+			menu.addSeparator();
+		}
 	}
 
 	menu.addAction("Merge all with previous", this, &MainWindow::onMergeAllWithPrevious);
@@ -893,21 +899,21 @@ void MainWindow::onMoveAudioWordsToPrev()
 	}
 
 	// Запрашиваем количество слов для перемещения
-	bool ok;
-	int wordCount = QInputDialog::getInt(this, "Move Words to Previous",
-		"Number of words to move from beginning of current sentence:",
-		1, 1, 100, 1, &ok);
+bool ok;
+int wordCount = QInputDialog::getInt(this, "Move Words to Previous",
+	"Number of words to move from beginning of current sentence:",
+	1, 1, 100, 1, &ok);
 
-	if (!ok) return;
+if (!ok) return;
 
-	if (m_aligner.moveAudioWordsToPrev(row, wordCount)) {
-		syncTableFromAligner();
-		setModified(true);
-		statusBar()->showMessage(QString("Moved %1 word(s) to previous sentence").arg(wordCount), 3000);
-	}
-	else {
-		QMessageBox::warning(this, "Error", "Failed to move words. Check boundaries.");
-	}
+if (m_aligner.moveAudioWordsToPrev(row, wordCount)) {
+	syncTableFromAligner();
+	setModified(true);
+	statusBar()->showMessage(QString("Moved %1 word(s) to previous sentence").arg(wordCount), 3000);
+}
+else {
+	QMessageBox::warning(this, "Error", "Failed to move words. Check boundaries.");
+}
 }
 
 void MainWindow::onRemoveAudioSentence()
@@ -966,7 +972,76 @@ void MainWindow::onSplitSentence()
 		QMessageBox::information(this, "Info", "Error row index");
 		return;
 	}
-	m_aligner.splitAudioSentenceToMp3(row);
+	m_aligner.splitAudioSentence(row);
+}
+
+void MainWindow::onGenerateSentence()
+{
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Error row index");
+		return;
+	}
+	m_aligner.generateAudioSentence(row);
+}
+
+void MainWindow::onPlayTransSentence()
+{
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Error row index");
+		return;
+	}
+	
+	QString path;
+	if (!m_aligner.prepareFilePath(true, row, path)) {
+		QMessageBox::information(this, "Info", "Error path");
+		return;
+	}
+
+	// если файла нет - предлагаем его сгенерировать
+	if (!QFile::exists(path)) {
+		if (QMessageBox::question(this, "Info", "Generate file?") == QMessageBox::Yes)
+			m_aligner.generateAudioSentence(row);
+		else
+			return;
+	}
+	if (!QFile::exists(path)) {
+		QMessageBox::information(this, "Info", "Error file");
+		return;
+	}
+
+	playAudioFile(path);
+}
+
+void MainWindow::onPlayAudioSentence()
+{
+	int row = m_table->currentRow();
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Error row index");
+		return;
+	}
+
+	QString path;
+	if (!m_aligner.prepareFilePath(false, row, path)) {
+		QMessageBox::information(this, "Info", "Error path");
+		return;
+	}
+
+	// если файла нет - предлагаем его выделить
+	if (!QFile::exists(path)) {
+		if (QMessageBox::question(this, "Info", "Split file?") == QMessageBox::Yes) 
+			m_aligner.splitAudioSentence(row);
+		else 
+			return;
+	}
+	
+	if (!QFile::exists(path)) {
+		QMessageBox::information(this, "Info", "Error file");
+		return;
+	}
+
+	playAudioFile(path);
 }
 
 void MainWindow::onMoveAudioWordsToNext()

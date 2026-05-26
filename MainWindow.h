@@ -71,6 +71,10 @@ private slots:
 	void onMoveAudioWordsToPrev();
 	void onMoveAudioWordsToNext();
 	void onSplitSentence();
+	void onGenerateSentence();
+	void onPlayTransSentence();
+	void onPlayAudioSentence();
+
 	void onRemoveAudioSentence();
 
 	// Context menu

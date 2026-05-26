@@ -8,6 +8,7 @@ static const char INI_FILE[] = "aligner.ini";
 	X(dictPath,             "dict", "../aligner_data/simple_dictionary.txt")\
 	X(endingsPath,          "endings", "../aligner_data/endings.txt")\
 	X(ffmpegPath,			"ffmpeg", "c:/MySoft/ffmpeg/bin/ffmpeg.exe")\
+	X(balconPath,			"balcon", "c:/MySoft/balcon/balcon.exe")\
 	X(windowGeometry,		"win_geometry", QVariant())\
 	X(windowState,			"win_state", QVariant())
 	

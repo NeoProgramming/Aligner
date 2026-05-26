@@ -20,3 +20,4 @@ double evaluateSentenceSimilaritySimple(const QString& sourceSentence, const QSt
 double calculateWordMatchScore(const QStringList& enWords, const QStringList& audioWords);
 
 bool intersect(const QStringList& list1, const QStringList& list2);
+void playAudioFile(const QString& filePath);
