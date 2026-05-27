@@ -30,6 +30,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
 	// Загружаем настройки
 	m_aligner.cfg.loadSettings();
+	m_aligner.cfg.balconPath = QDir::toNativeSeparators(m_aligner.cfg.balconPath);
+	m_aligner.cfg.ffmpegPath = QDir::toNativeSeparators(m_aligner.cfg.ffmpegPath);
 	m_aligner.loadDictionary(m_aligner.cfg.dictPath);
 	FuzzyLemmatizer::initLemmatizer(m_aligner.cfg.endingsPath);
 
