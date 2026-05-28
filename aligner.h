@@ -116,5 +116,9 @@ public:
 	bool moveAudioWordsToPrev(int sentenceIndex, int wordOffset);
 	bool moveAudioWordsToNext(int sentenceIndex, int wordOffset);
 	void updateAudioSentenceFromEntries(int sentenceIndex);
+private:
+	bool generateMp3(const QString &outputFilePath, const QString &text);
+	bool generateMp3v2(const QString &outputFilePath, const QString &text);
+	bool generateWav(const QString &outputFilePath, const QString &text);
 };
 

@@ -874,6 +874,8 @@ bool Aligner::splitAudioSentence(int i)
 	return true;
 }
 
+
+
 bool Aligner::generateAudioSentence(int i)
 {
 	QString outputFilePath;
@@ -889,139 +891,8 @@ bool Aligner::generateAudioSentence(int i)
 		qDebug() << "Skipping excluded cell" << i;
 		return true;
 	}
-
-	// 1. Процесс для ffmpeg (читает из stdin)
-	QProcess ffmpeg;
-	QStringList ffmpegArgs;
-	ffmpegArgs << "-y"
-		<< "-i" << "pipe:0"
-		<< "-c:a" << "libmp3lame"
-		<< "-b:a" << "64k"
-		<< outputFilePath;	
-
-	// 2. Процесс для balcon (пишет в stdout)
-	QProcess balcon;
-	QStringList balconArgs;
-	balconArgs << "-t" << cell.text
-		<< "-o" << "-";   // Вывод в stdout
-
-	// 3. Связываем stdout balcon с stdin ffmpeg
-	balcon.setStandardOutputProcess(&ffmpeg);
-
-	// 4. Запускаем оба процесса в правильном порядке
-	ffmpeg.start(cfg.ffmpegPath, ffmpegArgs);
-	if (!ffmpeg.waitForStarted(3000)) {
-		qDebug() << "FFmpeg failed to start";
-		return false;
-	}
-
-	balcon.start(cfg.balconPath, balconArgs);
-	if (!balcon.waitForStarted(3000)) {
-		qDebug() << "Balcon failed to start";
-		ffmpeg.kill();
-		return false;
-	}
-
-	// 5. Ждём завершения
-	balcon.waitForFinished(30000);
-	ffmpeg.waitForFinished(30000);
-
-	if (ffmpeg.exitCode() == 0) {
-		qDebug() << "MP3 created:" << outputFilePath;
-	}
-	else {
-		qDebug() << "FFmpeg error:" << ffmpeg.readAllStandardError();
-	}
-
-
-	/*
-	// Запускаем cmd.exe с конвейером
-	QProcess process;
-	QString command = QString(
-		"%1 -t \"%2\" -o - | %3 -y -i pipe:0 -c:a libmp3lame -b:a 64k %4"
-	).arg(
-		cfg.balconPath,
-		cell.text, 
-		cfg.ffmpegPath,
-		outputFilePath);
-	process.start("cmd.exe", QStringList() << "/c" << command);
-	if (!process.waitForFinished(30000)) {
-		qDebug() << "Error:" << process.errorString();
-		qDebug() << "Exit code:" << process.exitCode();
-		qDebug() << "StdErr:" << process.readAllStandardError();
-		return false;
-	}
-	if (process.exitCode() == 0) {
-		qDebug() << "MP3 created successfully:" << outputFilePath;
-	}
-	else {
-		qDebug() << "Failed to create MP3, exit code:" << process.exitCode();
-		qDebug() << "Error output:" << process.readAllStandardError();
-	}
-	*/
-	/*
-
-	QProcess ffmpegProcess;
-	QStringList ffmpegArgs;
-	ffmpegArgs << "-y"                      // Перезаписывать файл
-		<< "-i" << "pipe:0"          // Читать из stdin
-		<< "-c:a" << "libmp3lame"    // MP3 кодек
-		<< "-b:a" << "64k"           // Битрейт
-		<< outputFilePath;               // Итоговый файл
-	ffmpegProcess.start(cfg.ffmpegPath, ffmpegArgs);
-	
-	// 2. Настройка процесса для balcon (генератор речи)
-	QProcess balconProcess;
-	QStringList balconArgs;
-	balconArgs << "-t" << cell.text
-		<< "-n" << "Irina" // Выберите ваш голос
-		<< "-o" << "-";    // Вывод в stdout как wav
-
-	// 3. Связываем вывод balcon с вводом ffmpeg
-	balconProcess.setStandardOutputProcess(&ffmpegProcess);
-
-	// 4. Запускаем оба процесса
-	balconProcess.start(cfg.balconPath, balconArgs);
-	ffmpegProcess.start();
-
-//	// Формируем команду balcon
-//	QStringList balconArgs;
-//	// Выбираем текст (можно передать и из файла, и как строку)
-//	balconArgs << "-t" << cell.text;
-//	// Задаем выходной файл
-//	balconArgs << "-w" << outputFilePath;
-//	// (Необязательно) Выбираем голос
-//	balconArgs << "-n" << "Irina";
-//	// (Необязательно) Настраиваем качество
-//	balconArgs << "-fr" << "44";
-//	QProcess balcon;
-//	balcon.start(cfg.balconPath, balconArgs);
-//	if (!balcon.waitForStarted(3000)) {
-//		qDebug() << "Failed to start balcon for cell" << i;
-//		return false;
-//	}
-//	if (!balcon.waitForFinished(60000)) { // таймаут 60 секунд
-//		qDebug() << "balcon timeout for cell" << i;
-//		balcon.kill();
-//		return false;
-//	}
-//	// Проверяем результат
-//	if (balcon.exitCode() != 0 || !QFile::exists(outputFilePath)) {
-//		qDebug() << "Failed to create:" << outputFilePath;
-//		qDebug() << "FFmpeg error:" << balcon.readAllStandardError();
-//		return false;
-//	}
-
-	// 5. Ожидаем завершения
-	if (balconProcess.waitForFinished() && ffmpegProcess.waitForFinished()) {
-		qDebug() << "MP3 created:" << outputFilePath;
-	}
-	else {
-		qDebug() << "Error MP3!";
-	}
-	
-	qDebug() << "Successfully created:" << outputFilePath;
-	*/
+		
+	generateMp3v2(outputFilePath, cell.text);
 
 	return true;
 }
@@ -2005,5 +1876,114 @@ bool Aligner::removeAudioSentence(int row, bool force)
 	normalizeRowCount();
 
 	modified = true;
+	return true;
+}
+
+bool Aligner::generateMp3(const QString &outputFilePath, const QString &text)
+{
+	// 1. Процесс для ffmpeg (читает из stdin)
+	QProcess ffmpeg;
+	QStringList ffmpegArgs;
+	ffmpegArgs << "-y"
+		<< "-i" << "pipe:0"
+		<< "-c:a" << "libmp3lame"
+		<< "-b:a" << "64k"
+		<< outputFilePath;
+
+	// 2. Процесс для balcon (пишет в stdout)
+	QProcess balcon;
+	QStringList balconArgs;
+	balconArgs << "-t" << text
+		<< "-o" << "-";   // Вывод в stdout
+
+	// 3. Связываем stdout balcon с stdin ffmpeg
+	balcon.setStandardOutputProcess(&ffmpeg);
+
+	// 4. Запускаем оба процесса в правильном порядке
+	ffmpeg.start(cfg.ffmpegPath, ffmpegArgs);
+	if (!ffmpeg.waitForStarted(3000)) {
+		qDebug() << "FFmpeg failed to start";
+		return false;
+	}
+
+	balcon.start(cfg.balconPath, balconArgs);
+	if (!balcon.waitForStarted(3000)) {
+		qDebug() << "Balcon failed to start";
+		ffmpeg.kill();
+		return false;
+	}
+
+	// 5. Ждём завершения
+	balcon.waitForFinished(30000);
+	ffmpeg.waitForFinished(30000);
+
+	if (ffmpeg.exitCode() != 0) {
+		qDebug() << "FFmpeg error:" << ffmpeg.readAllStandardError();
+		return false;
+	}
+
+	qDebug() << "MP3 created:" << outputFilePath;
+	return true;
+}
+
+bool Aligner::generateMp3v2(const QString &outputFilePath, const QString &text)
+{
+	// Запускаем cmd.exe с конвейером
+	QProcess process;
+	QString command = QString(
+		"cmd.exe /c %1 -t \"%2\" -o - | %3 -y -i pipe:0 -c:a libmp3lame -b:a 64k %4"
+	).arg(
+		cfg.balconPath,
+		text,
+		cfg.ffmpegPath,
+		outputFilePath);
+	
+	process.start(command);
+	if (!process.waitForFinished(30000)) {
+		qDebug() << "Error:" << process.errorString();
+		qDebug() << "Exit code:" << process.exitCode();
+		qDebug() << "StdErr:" << process.readAllStandardError();
+		return false;
+	}
+	if (process.exitCode() != 0) {
+		qDebug() << "Failed to create MP3, exit code:" << process.exitCode();
+		qDebug() << "Error output:" << process.readAllStandardError();
+		return false;
+	}
+
+	qDebug() << "MP3 created successfully:" << outputFilePath;
+	return true;
+}
+
+bool Aligner::generateWav(const QString &outputFilePath, const QString &text)
+{
+	// Формируем команду balcon
+	QStringList balconArgs;
+	// Выбираем текст (можно передать и из файла, и как строку)
+	balconArgs << "-t" << text;
+	// Задаем выходной файл
+	balconArgs << "-w" << outputFilePath;
+	// (Необязательно) Выбираем голос
+	balconArgs << "-n" << "Irina";
+	
+	QProcess balcon;
+	balcon.start(cfg.balconPath, balconArgs);
+	if (!balcon.waitForStarted(3000)) {
+		qDebug() << "Failed to start balcon";
+		return false;
+	}
+	if (!balcon.waitForFinished(60000)) { // таймаут 60 секунд
+		qDebug() << "balcon timeout";
+		balcon.kill();
+		return false;
+	}
+	// Проверяем результат
+	if (balcon.exitCode() != 0 || !QFile::exists(outputFilePath)) {
+		qDebug() << "Failed to create:" << outputFilePath;
+		qDebug() << "FFmpeg error:" << balcon.readAllStandardError();
+		return false;
+	}
+
+	qDebug() << "Successfully created:" << outputFilePath;
 	return true;
 }

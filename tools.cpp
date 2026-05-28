@@ -8,6 +8,7 @@
 #include <QUrl>
 #include <QDesktopServices>
 #include <QMessageBox>
+#include <QProcess>
 
 // aligner.cpp
 QString debugEnWords(IAlignmentEngine *engine, int start, int count)
@@ -302,3 +303,5 @@ void playAudioFile(const QString& filePath)
 			"Не удалось открыть аудиофайл:\n" + filePath);
 	}
 }
+
+
