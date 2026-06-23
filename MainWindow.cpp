@@ -174,10 +174,6 @@ void MainWindow::createToolBar()
 	toolbar->addAction("Audio align", this, &MainWindow::onAudioAlign);
 	
 	toolbar->addSeparator();
-	toolbar->addAction("Split", this, &MainWindow::onSplitCell);
-	toolbar->addAction("Merge with Prev", this, &MainWindow::onMergeWithPrevious);
-	toolbar->addAction("Merge with Next", this, &MainWindow::onMergeWithNext);
-	toolbar->addSeparator();
 	toolbar->addAction("Split Audio", this, &MainWindow::onSplitAudio);
 	toolbar->addAction("Generate Audio", this, &MainWindow::onGenerateAudio);
 	toolbar->addSeparator();
