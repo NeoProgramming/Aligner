@@ -39,6 +39,9 @@ public:
 	void clearAudio();
 
 	bool removeAudioSentence(int row, bool force = false);
+
+	void moveCellUp(int row, int column);
+	void moveCellDown(int row, int column);
 	
 	// Данные (публичные поля для простоты)
 	Settings cfg;
@@ -121,5 +124,7 @@ private:
 	bool generateMp3(const QString &outputFilePath, const QString &text);
 	bool generateMp3v2(const QString &outputFilePath, const QString &text);
 	bool generateWav(const QString &outputFilePath, const QString &text);
+
+	void updateAudioIndicesAfterSwap(int row1, int row2);
 };
 

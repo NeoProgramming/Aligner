@@ -643,6 +643,12 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	else {
 		menu.addAction("Edit", this, &MainWindow::onEditCell);
 		menu.addSeparator();
+		// Добавляем команды перемещения для перевода (безопасно)
+		if (index.column() == 1) {
+			menu.addAction("Move Up", this, &MainWindow::onMoveCellUp);
+			menu.addAction("Move Down", this, &MainWindow::onMoveCellDown);
+			menu.addSeparator();
+		}
 		menu.addAction("Split", this, &MainWindow::onSplitCell);
 		menu.addAction("Merge with previous", this, &MainWindow::onMergeWithPrevious);
 		menu.addAction("Merge with next", this, &MainWindow::onMergeWithNext);
@@ -756,6 +762,60 @@ void MainWindow::onEditCell()
 	connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
 
 	dialog.exec();
+}
+
+
+// В MainWindow.cpp:
+void MainWindow::onMoveCellUp()
+{
+	int row = m_table->currentRow();
+	int col = m_table->currentColumn();
+
+	if (row <= 0) {
+		QMessageBox::information(this, "Info", "Cannot move up - already at first row");
+		return;
+	}
+
+	if (col < 0 || col > 2) {
+		QMessageBox::information(this, "Info", "Select a cell in the column to move");
+		return;
+	}
+
+	m_aligner.moveCellUp(row, col);
+	syncTableFromAligner();
+	setModified(true);
+
+	// Выделяем перемещённую ячейку
+	m_table->setCurrentCell(row - 1, col);
+
+	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Translated" : "Audio";
+	statusBar()->showMessage(QString("Moved %1 cell up").arg(columnName), 2000);
+}
+
+void MainWindow::onMoveCellDown()
+{
+	int row = m_table->currentRow();
+	int col = m_table->currentColumn();
+
+	if (row < 0 || row >= m_table->rowCount() - 1) {
+		QMessageBox::information(this, "Info", "Cannot move down - already at last row");
+		return;
+	}
+
+	if (col < 0 || col > 2) {
+		QMessageBox::information(this, "Info", "Select a cell in the column to move");
+		return;
+	}
+
+	m_aligner.moveCellDown(row, col);
+	syncTableFromAligner();
+	setModified(true);
+
+	// Выделяем перемещённую ячейку
+	m_table->setCurrentCell(row + 1, col);
+
+	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Translated" : "Audio";
+	statusBar()->showMessage(QString("Moved %1 cell down").arg(columnName), 2000);
 }
 
 void MainWindow::splitRowAtPosition(int row, int col, int cursorPos)

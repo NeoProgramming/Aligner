@@ -776,7 +776,8 @@ bool Aligner::prepareFilePath(bool gen, int i, QString &outputFilePath)
 		return false;
 	}
 
-	QString outputDirectory = QFileInfo(currentAudioFile).absolutePath();
+	// формируем выходную папку
+	QString outputDirectory = QFileInfo(currentOutputDir).absolutePath();
 
 	// Создаем выходную директорию, если её нет
 	QDir dir;
@@ -1991,4 +1992,87 @@ bool Aligner::generateWav(const QString &outputFilePath, const QString &text)
 
 	qDebug() << "Successfully created:" << outputFilePath;
 	return true;
+}
+
+void Aligner::moveCellUp(int row, int column)
+{
+	if (row <= 0) return;  // Нельзя переместить выше первой строки
+	if (column < 0 || column > 2) return;
+
+	switch (column) {
+	case 0: // Source
+		if (row >= sourceCells.size()) return;
+		std::swap(sourceCells[row], sourceCells[row - 1]);
+		break;
+	case 1: // Translated
+		if (row >= translatedCells.size()) return;
+		std::swap(translatedCells[row], translatedCells[row - 1]);
+		break;
+	case 2: // Audio
+		if (row >= audioCells.size()) return;
+		std::swap(audioCells[row], audioCells[row - 1]);
+
+		// Обновляем индексы в audioEntries после обмена
+		updateAudioIndicesAfterSwap(row - 1, row);
+		break;
+	}
+
+	modified = true;
+}
+
+void Aligner::moveCellDown(int row, int column)
+{
+	if (row < 0) return;
+	if (column < 0 || column > 2) return;
+
+	switch (column) {
+	case 0: // Source
+		if (row + 1 >= sourceCells.size()) return;
+		std::swap(sourceCells[row], sourceCells[row + 1]);
+		break;
+	case 1: // Translated
+		if (row + 1 >= translatedCells.size()) return;
+		std::swap(translatedCells[row], translatedCells[row + 1]);
+		break;
+	case 2: // Audio
+		if (row + 1 >= audioCells.size()) return;
+		std::swap(audioCells[row], audioCells[row + 1]);
+
+		// Обновляем индексы в audioEntries после обмена
+		updateAudioIndicesAfterSwap(row, row + 1);
+		break;
+	}
+
+	modified = true;
+}
+
+// Вспомогательный метод для обновления индексов в audioEntries
+void Aligner::updateAudioIndicesAfterSwap(int row1, int row2)
+{
+	// Обновляем sentenceIdx в audioEntries для всех слов,
+	// которые принадлежат этим двум строкам
+
+	// Проверяем первую строку
+	if (row1 >= 0 && row1 < audioCells.size()) {
+		AudioSentence& sent1 = audioCells[row1];
+		if (sent1.firstWordIndex >= 0 && sent1.lastWordIndex >= 0) {
+			for (int i = sent1.firstWordIndex; i <= sent1.lastWordIndex; ++i) {
+				if (i >= 0 && i < audioEntries.size()) {
+					audioEntries[i].sentenceIdx = row1;
+				}
+			}
+		}
+	}
+
+	// Проверяем вторую строку
+	if (row2 >= 0 && row2 < audioCells.size()) {
+		AudioSentence& sent2 = audioCells[row2];
+		if (sent2.firstWordIndex >= 0 && sent2.lastWordIndex >= 0) {
+			for (int i = sent2.firstWordIndex; i <= sent2.lastWordIndex; ++i) {
+				if (i >= 0 && i < audioEntries.size()) {
+					audioEntries[i].sentenceIdx = row2;
+				}
+			}
+		}
+	}
 }

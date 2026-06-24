@@ -54,6 +54,8 @@ private slots:
 	void onClearAudio();
 	void onNormalizeRows();
 
+
+
 	// Tools menu
 	void onTranslatedAlign();
 	void onAudioAlign();
@@ -86,7 +88,8 @@ protected:
 
 private slots:
 	void onEditCell();  // новый слот для редактирования
-	
+	void onMoveCellUp();
+	void onMoveCellDown();
 private:
 	bool loadAudioTextFile(const QString& filename);
 	void setupUI();
