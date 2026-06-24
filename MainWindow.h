@@ -63,6 +63,8 @@ private slots:
 	void onSplitAudio();
 	void onGenerateAudio();
 
+	void onSetOutputDir();
+
 	void onLoadProject();
 	void onSaveProject();
 	void onSaveProjectAs();

@@ -55,6 +55,7 @@ public:
 	QString currentTranslatedFile;
 	QString currentAudioTextFile;
 	QString currentAudioFile;
+	QString currentOutputDir;
 
 	QHash<QString, QString> m_dictionary;  // русское слово -> английское
 	

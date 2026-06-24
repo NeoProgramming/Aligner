@@ -121,6 +121,8 @@ void MainWindow::createMenuBar()
 	fileMenu->addAction("Load Audio Text (SRT/JSON)", this, &MainWindow::onLoadAudioText);
 	fileMenu->addAction("Load Audio File (MP3)", this, &MainWindow::onLoadAudioFile);
 	fileMenu->addSeparator();
+	fileMenu->addAction("Select output dir", this, &MainWindow::onSetOutputDir);
+	fileMenu->addSeparator();
 	fileMenu->addAction("New project", this, &MainWindow::onNewProject);
 	fileMenu->addAction("Load project...", this, &MainWindow::onLoadProject);
 	fileMenu->addAction("Save project", this, &MainWindow::onSaveProject);
@@ -860,6 +862,13 @@ void MainWindow::closeEvent(QCloseEvent* event)
 		// Cancel
 		event->ignore();
 	}
+}
+
+void MainWindow::onSetOutputDir()
+{
+	QString dir = QFileDialog::getExistingDirectory(this, "Select output dir", m_aligner.currentOutputDir);
+	if (!dir.isEmpty())
+		m_aligner.currentOutputDir = dir;
 }
 
 void MainWindow::onNewProject()

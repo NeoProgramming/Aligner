@@ -1062,6 +1062,8 @@ bool Aligner::saveProjectTxt(const QString& filename)
 		stream << "# AudioText: " << currentAudioTextFile << "\n";
 	if (!currentAudioFile.isEmpty())
 		stream << "# AudioFile: " << currentAudioFile << "\n";
+	if (!currentOutputDir.isEmpty())
+		stream << "# OutputDir: " << currentOutputDir << "\n";
 	stream << "\n";
 
 	// Сохраняем аудио энтрисы, если они есть
@@ -1199,6 +1201,9 @@ bool Aligner::loadProjectTxt(const QString& filename)
 			}
 			else if (line.startsWith("# AudioFile: ")) {
 				currentAudioFile = value;
+			}
+			else if (line.startsWith("# OutputDir: ")) {
+				currentOutputDir = value;
 			}
 			else if (line.startsWith("# Audio entries count: ")) {
 				// Начинаем секцию аудио энтрисов
