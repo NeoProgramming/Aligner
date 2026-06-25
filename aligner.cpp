@@ -525,6 +525,7 @@ void Aligner::clear()
 	currentTranslatedFile.clear();
 	currentAudioTextFile.clear();
 	currentAudioFile.clear();
+	currentOutputDir.clear();
 	totalAudioSim = 0;
 	modified = false;
 }

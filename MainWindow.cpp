@@ -23,6 +23,7 @@
 #include "tools.h"
 #include "AudioEntriesViewer.h"
 #include "FuzzyLemmatizer.h"|
+#include "ProjectSettingsDialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -127,6 +128,8 @@ void MainWindow::createMenuBar()
 	fileMenu->addAction("Load project...", this, &MainWindow::onLoadProject);
 	fileMenu->addAction("Save project", this, &MainWindow::onSaveProject);
 	fileMenu->addAction("Save project as...", this, &MainWindow::onSaveProjectAs);
+	fileMenu->addSeparator();
+	fileMenu->addAction("Settings", this, &MainWindow::onProjectSettings);
 	fileMenu->addSeparator();
 	fileMenu->addAction("Exit", this, &MainWindow::onExit, QKeySequence::Quit);
 
@@ -1136,3 +1139,27 @@ void MainWindow::onMoveAudioWordsToNext()
 	}
 }
 
+void MainWindow::onProjectSettings()
+{
+	ProjectSettingsDialog dialog(this);
+
+	// Загружаем текущие настройки
+	dialog.setSourceFile(m_aligner.currentSourceFile);
+	dialog.setTranslatedFile(m_aligner.currentTranslatedFile);
+	dialog.setAudioTextFile(m_aligner.currentAudioTextFile);
+	dialog.setAudioFile(m_aligner.currentAudioFile);
+	dialog.setOutputDir(m_aligner.currentOutputDir);
+
+	if (dialog.exec() == QDialog::Accepted) {
+		// Сохраняем новые настройки
+		m_aligner.currentSourceFile = dialog.getSourceFile();
+		m_aligner.currentTranslatedFile = dialog.getTranslatedFile();
+		m_aligner.currentAudioTextFile = dialog.getAudioTextFile();
+		m_aligner.currentAudioFile = dialog.getAudioFile();
+		m_aligner.currentOutputDir = dialog.getOutputDir();
+
+		m_aligner.modified = true;
+		setModified(true);
+		statusBar()->showMessage("Project settings updated", 2000);
+	}
+}

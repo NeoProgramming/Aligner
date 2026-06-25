@@ -90,6 +90,7 @@ private slots:
 	void onEditCell();  // новый слот для редактирования
 	void onMoveCellUp();
 	void onMoveCellDown();
+	void onProjectSettings();
 private:
 	bool loadAudioTextFile(const QString& filename);
 	void setupUI();

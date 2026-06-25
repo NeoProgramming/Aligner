@@ -52,6 +52,9 @@
     <ClCompile Include="FuzzyLemmatizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ProjectSettingsDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aligner.h">
@@ -75,6 +78,9 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="AudioEntriesViewer.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ProjectSettingsDialog.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>
