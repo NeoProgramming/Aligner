@@ -56,14 +56,10 @@ struct SourceWord {
 struct TextSentence {
 	QString text;
 	bool isExcluded;  // можно исключить отдельную ячейку
-	bool isError;
-	bool isHighlighted;  // Новая отметка для всей строки
-
+	
 	void clear() {
 		text = "";
-		isExcluded = false;
-		isError = false;
-		isHighlighted = false;  // Инициализация
+		isExcluded = false;		
 	}
 
 	TextSentence() {
@@ -80,6 +76,7 @@ struct AudioSentence : public TextSentence {
 	int lastWordIndex = -1;    // индекс последнего слова предложения в audioEntries
 	double audioSim;	// похожесть аудио текста на исходный текст
 	double transSim;	// похожесть переведенного текста на исходный текст
+	bool isHighlighted;  // Новая отметка для всей строки
 
 	void clear() {
 		TextSentence::clear();
@@ -88,6 +85,7 @@ struct AudioSentence : public TextSentence {
 		transSim = -1.0;
 		firstWordIndex = -1;
 		lastWordIndex = -1;
+		isHighlighted = false;
 	}
 
 	AudioSentence() {

@@ -40,6 +40,7 @@ private slots:
 	void onSplitCell();
 	void onMergeWithPrevious();
 	void onMergeWithNext();
+	void onExcludeCell();
 	void onExcludeRow();
 	void onSetHighlightRow();
 	void onClearHighlightRow();
@@ -101,6 +102,7 @@ private:
 
 	void splitRowAtPosition(int row, int col, int cursorPos);
 
+	void updateWindowTitle();
 	void syncTableFromAligner();	
 	void updateRowHeights();
 	void setModified(bool modified);

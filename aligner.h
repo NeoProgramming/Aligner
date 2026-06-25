@@ -89,13 +89,15 @@ public:
 	// Разбивка текста
 	QVector<QString> splitIntoSentences(const QString& text);
 
+	void highlightRow(int row, bool highlight);
+	bool isHighlightedRow(int row);
+
 	// Операции с ячейками (независимо для каждого столбца)
 	void splitCell(int row, int cursorPos, int column);
 	void mergeCells(int row1, int row2, int column);
 	void mergeCells2(int row1, int row2, int column); // old
+	void excludeRow(int row);
 	void excludeCell(int row, int column);
-	void highlightCell(int row, bool highlight);
-	bool isHighlightedRow(int row);
 	void setCellText(int row, int column, const QString& text);
 
 	// Выравнивание

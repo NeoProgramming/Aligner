@@ -40,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent)
 	createMenuBar();
 	createToolBar();
 	createStatusBar();
-	setWindowTitle("Text Alignment Tool");
+	updateWindowTitle();
 	resize(1200, 700);
 
 	m_audioEntriesViewer = new AudioEntriesViewer(&m_aligner, this);
@@ -137,7 +137,8 @@ void MainWindow::createMenuBar()
 	editMenu->addAction("Split Cell", this, &MainWindow::onSplitCell, QKeySequence(Qt::CTRL + Qt::Key_T));
 	editMenu->addAction("Merge with Previous", this, &MainWindow::onMergeWithPrevious, QKeySequence(Qt::CTRL + Qt::Key_Up));
 	editMenu->addAction("Merge with Next", this, &MainWindow::onMergeWithNext, QKeySequence(Qt::CTRL + Qt::Key_Down));
-	editMenu->addAction("Exclude Row", this, &MainWindow::onExcludeRow, QKeySequence::Delete);
+	editMenu->addAction("Exclude Cell", this, &MainWindow::onExcludeCell);
+	editMenu->addAction("Exclude Row", this, &MainWindow::onExcludeRow);
 	editMenu->addSeparator();
 	editMenu->addAction("Merge all with Previous", this, &MainWindow::onMergeAllWithPrevious);
 	editMenu->addAction("Merge all with Next", this, &MainWindow::onMergeAllWithNext);
@@ -215,12 +216,35 @@ void MainWindow::onNormalizeRows()
 	syncTableFromAligner();
 }
 
+void MainWindow::updateWindowTitle()
+{
+	QString title = "Aligner";
+
+	// Добавляем количество строк
+	int rows = m_aligner.rowCount();
+	title += QString(" [%1 rows]").arg(rows);
+
+	// Добавляем имя проекта, если оно есть
+	if (!m_aligner.cfg.recentProjectPath.isEmpty()) {
+		QFileInfo projectInfo(m_aligner.cfg.recentProjectPath);
+		title += " - " + projectInfo.fileName();
+	}
+
+	// Добавляем флаг модификации
+	if (m_aligner.modified) {
+		title += " *";
+	}
+
+	setWindowTitle(title);
+}
 
 void MainWindow::syncTableFromAligner()
 {
 	int rows = m_aligner.rowCount();
 	m_table->setRowCount(rows);
-
+	
+	updateWindowTitle();
+	
 	// Настройка вертикальных заголовков (номера строк с 0)
 	for (int i = 0; i < rows; ++i) {
 		QTableWidgetItem* headerItem = new QTableWidgetItem(QString::number(i));
@@ -240,22 +264,18 @@ void MainWindow::syncTableFromAligner()
 			infoText = QString::asprintf("%g", m_aligner.audioCells[i].transSim);
 		else if(m_imode == InfoMode::Times)
 			infoText = QString::asprintf("%g:%g", m_aligner.audioCells[i].audioStartMs/1000.0, 
-				(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0);
-
-		
+				(m_aligner.audioCells[i].audioEndMs - m_aligner.audioCells[i].audioStartMs)/1000.0);		
 
 		// Статус excluded для каждого столбца
 		bool sourceExcl = (i < m_aligner.sourceCells.size()) && m_aligner.sourceCells[i].isExcluded;
 		bool translExcl = (i < m_aligner.translatedCells.size()) && m_aligner.translatedCells[i].isExcluded;
 		bool audioExcl = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isExcluded;
-		bool audioErr = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isError;
 		bool highlighted = (i < m_aligner.audioCells.size()) && m_aligner.audioCells[i].isHighlighted;
 
 		// Цвета фона
 		QColor sourceBg = sourceExcl ? Qt::lightGray : highlighted ? Qt::yellow : Qt::white;
 		QColor targetBg = translExcl ? Qt::lightGray : highlighted ? Qt::yellow : Qt::white;
 		QColor audioBg = 
-			audioErr ? Qt::red :
 			audioExcl ? Qt::lightGray : 
 			highlighted ? Qt::yellow :
 			Qt::white;
@@ -296,9 +316,7 @@ void MainWindow::updateRowHeights()
 void MainWindow::setModified(bool modified)
 {
 	m_aligner.modified = modified;
-	QString title = "Text Alignment Tool";
-	if (modified) title += " [modified]";
-	setWindowTitle(title);
+	updateWindowTitle();
 }
 
 void MainWindow::onLoadSource()
@@ -457,7 +475,7 @@ void MainWindow::onSetHighlightRow()
 	QList<QTableWidgetSelectionRange> ranges = m_table->selectedRanges();
 	for (const QTableWidgetSelectionRange& range : ranges) {
 		for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
-			m_aligner.highlightCell(row, true);
+			m_aligner.highlightRow(row, true);
 		}
 	}
 
@@ -477,7 +495,7 @@ void MainWindow::onSetHighlightUpperRows()
 	for (int r = row; r >= 0; r--) {
 		if (m_aligner.isHighlightedRow(r))
 			break;
-		m_aligner.highlightCell(r, true);
+		m_aligner.highlightRow(r, true);
 	}
 
 	syncTableFromAligner();
@@ -489,7 +507,7 @@ void MainWindow::onClearHighlightRow()
 	QList<QTableWidgetSelectionRange> ranges = m_table->selectedRanges();
 	for (const QTableWidgetSelectionRange& range : ranges) {
 		for (int row = range.topRow(); row <= range.bottomRow(); ++row) {
-			m_aligner.highlightCell(row, false);
+			m_aligner.highlightRow(row, false);
 		}
 	}
 
@@ -497,7 +515,7 @@ void MainWindow::onClearHighlightRow()
 	setModified(true);
 }
 
-void MainWindow::onExcludeRow()
+void MainWindow::onExcludeCell()
 {
 	int row = m_table->currentRow();
 	int col = m_table->currentColumn();
@@ -511,10 +529,16 @@ void MainWindow::onExcludeRow()
 	m_aligner.excludeCell(row, col);
 	syncTableFromAligner();
 	setModified(true);
+}
 
-	QString columnName = (col == 0) ? "Source" : (col == 1) ? "Translated" : "Audio";
-	statusBar()->showMessage(QString("Cell in %1 column %2").arg(columnName)
-		.arg(m_aligner.sourceCells[row].isExcluded ? "excluded" : "included"), 2000);
+void MainWindow::onExcludeRow()
+{
+	int row = m_table->currentRow();
+	if (row < 0) return;
+
+	m_aligner.excludeRow(row);
+	syncTableFromAligner();
+	setModified(true);
 }
 
 void MainWindow::onDebugInfo()
@@ -667,7 +691,8 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	menu.addAction("Merge all with next", this, &MainWindow::onMergeAllWithNext);
 	menu.addSeparator();
 
-	menu.addAction("Exclude", this, &MainWindow::onExcludeRow);
+	menu.addAction("Exclude Cell", this, &MainWindow::onExcludeCell);
+	menu.addAction("Exclude Row", this, &MainWindow::onExcludeRow);
 	menu.addAction("Set Highlight", this, &MainWindow::onSetHighlightRow);
 	menu.addAction("Clear Highlight", this, &MainWindow::onClearHighlightRow);
 	menu.addAction("Set Highlight above", this, &MainWindow::onSetHighlightUpperRows);

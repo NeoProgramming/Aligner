@@ -1,6 +1,9 @@
 #include "AudioEntriesViewer.h"
 #include <QDebug>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QLineEdit>
+#include <QCheckBox>
 #include "aligner.h"
 
 AudioEntriesViewer::AudioEntriesViewer(Aligner *aligner, QWidget *parent)
@@ -25,6 +28,66 @@ AudioEntriesViewer::~AudioEntriesViewer()
 void AudioEntriesViewer::setupUI()
 {
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
+
+	// ---- Панель поиска ----
+	QHBoxLayout* searchLayout = new QHBoxLayout();
+	searchLayout->setSpacing(8);
+
+	// Метка "Search:"
+	QLabel* searchLabel = new QLabel("Search:", this);
+	searchLayout->addWidget(searchLabel);
+
+	// Поле ввода для поиска
+	m_searchEdit = new QLineEdit(this);
+	m_searchEdit->setPlaceholderText("Enter word or phrase...");
+	m_searchEdit->setMinimumWidth(300);
+	connect(m_searchEdit, &QLineEdit::textChanged, this, &AudioEntriesViewer::onSearchTextChanged);
+	connect(m_searchEdit, &QLineEdit::returnPressed, this, &AudioEntriesViewer::onSearchNext);
+	searchLayout->addWidget(m_searchEdit);
+
+	// Кнопки навигации по результатам
+	m_searchPrevBtn = new QPushButton("Up", this);
+	m_searchPrevBtn->setFixedSize(30, 30);
+	m_searchPrevBtn->setToolTip("Previous match (Shift+F3)");
+	m_searchPrevBtn->setEnabled(false);
+	connect(m_searchPrevBtn, &QPushButton::clicked, this, &AudioEntriesViewer::onSearchPrevious);
+	searchLayout->addWidget(m_searchPrevBtn);
+
+	m_searchNextBtn = new QPushButton("Down", this);
+	m_searchNextBtn->setFixedSize(30, 30);
+	m_searchNextBtn->setToolTip("Next match (F3)");
+	m_searchNextBtn->setEnabled(false);
+	connect(m_searchNextBtn, &QPushButton::clicked, this, &AudioEntriesViewer::onSearchNext);
+	searchLayout->addWidget(m_searchNextBtn);
+
+	// Кнопка очистки поиска
+	m_clearSearchBtn = new QPushButton("X", this);
+	m_clearSearchBtn->setFixedSize(30, 30);
+	m_clearSearchBtn->setToolTip("Clear search");
+	m_clearSearchBtn->setEnabled(false);
+	connect(m_clearSearchBtn, &QPushButton::clicked, this, &AudioEntriesViewer::onClearSearch);
+	searchLayout->addWidget(m_clearSearchBtn);
+
+	// Настройки поиска
+	m_caseSensitiveCheck = new QCheckBox("Aa", this);
+	m_caseSensitiveCheck->setToolTip("Case sensitive");
+	m_caseSensitiveCheck->setChecked(false);
+	connect(m_caseSensitiveCheck, &QCheckBox::toggled, this, &AudioEntriesViewer::onToggleCaseSensitive);
+	searchLayout->addWidget(m_caseSensitiveCheck);
+
+	m_wholeWordCheck = new QCheckBox("\" \"", this);
+	m_wholeWordCheck->setToolTip("Whole word only");
+	m_wholeWordCheck->setChecked(false);
+	connect(m_wholeWordCheck, &QCheckBox::toggled, this, &AudioEntriesViewer::onToggleWholeWord);
+	searchLayout->addWidget(m_wholeWordCheck);
+
+	searchLayout->addStretch();
+
+	// Статус поиска
+	m_statusLabel = new QLabel("Audio entries: 0", this);
+	searchLayout->addWidget(m_statusLabel);
+
+	mainLayout->addLayout(searchLayout);
 
 	// Заголовок
 	m_statusLabel = new QLabel("Audio entries: 0", this);
@@ -171,4 +234,201 @@ void AudioEntriesViewer::onShowInfo()
 	}
 
 	msgBox.exec();
+}
+
+// ---- Поиск ----
+
+void AudioEntriesViewer::onSearchTextChanged(const QString& text)
+{
+	if (text.isEmpty()) {
+		// Очищаем подсветку
+		for (int i = 0; i < m_table->rowCount(); ++i) {
+			highlightRow(i, false);
+		}
+		m_searchResults.clear();
+		m_currentResultIndex = -1;
+		m_searchPrevBtn->setEnabled(false);
+		m_searchNextBtn->setEnabled(false);
+		m_clearSearchBtn->setEnabled(false);
+		updateStatusLabel();
+		return;
+	}
+
+	m_clearSearchBtn->setEnabled(true);
+	performSearch();
+}
+
+void AudioEntriesViewer::onSearchNext()
+{
+	if (m_searchResults.isEmpty()) return;
+
+	// Переход к следующему результату
+	m_currentResultIndex = (m_currentResultIndex + 1) % m_searchResults.size();
+	int row = m_searchResults[m_currentResultIndex];
+	scrollToRow(row);
+	highlightRow(row, true);
+	updateStatusLabel();
+}
+
+void AudioEntriesViewer::onSearchPrevious()
+{
+	if (m_searchResults.isEmpty()) return;
+
+	// Переход к предыдущему результату
+	m_currentResultIndex = (m_currentResultIndex - 1 + m_searchResults.size()) % m_searchResults.size();
+	int row = m_searchResults[m_currentResultIndex];
+	scrollToRow(row);
+	highlightRow(row, true);
+	updateStatusLabel();
+}
+
+void AudioEntriesViewer::onToggleCaseSensitive(bool checked)
+{
+	Q_UNUSED(checked);
+	if (!m_searchEdit->text().isEmpty()) {
+		performSearch();
+	}
+}
+
+void AudioEntriesViewer::onToggleWholeWord(bool checked)
+{
+	Q_UNUSED(checked);
+	if (!m_searchEdit->text().isEmpty()) {
+		performSearch();
+	}
+}
+
+void AudioEntriesViewer::onClearSearch()
+{
+	m_searchEdit->clear();
+	m_searchEdit->setFocus();
+}
+
+void AudioEntriesViewer::performSearch()
+{
+	// Снимаем подсветку со всех строк
+	for (int i = 0; i < m_table->rowCount(); ++i) {
+		highlightRow(i, false);
+	}
+
+	m_searchResults.clear();
+	m_currentResultIndex = -1;
+
+	QString searchText = m_searchEdit->text().trimmed();
+	if (searchText.isEmpty()) {
+		m_searchPrevBtn->setEnabled(false);
+		m_searchNextBtn->setEnabled(false);
+		updateStatusLabel();
+		return;
+	}
+
+	// Разбиваем поисковый запрос на слова
+	QStringList searchWords = searchText.split(' ', Qt::SkipEmptyParts);
+	if (searchWords.isEmpty()) return;
+
+	Qt::CaseSensitivity caseSensitivity = m_caseSensitiveCheck->isChecked() ?
+		Qt::CaseSensitive : Qt::CaseInsensitive;
+
+	// Проходим по всем словам в таблице
+	for (int row = 0; row < m_table->rowCount(); ++row) {
+		QTableWidgetItem* wordItem = m_table->item(row, 0);
+		if (!wordItem) continue;
+
+		QString wordText = wordItem->text();
+		bool found = true;
+
+		// Проверяем каждое слово из запроса
+		for (const QString& searchWord : searchWords) {
+			bool wordFound = false;
+
+			if (m_wholeWordCheck->isChecked()) {
+				// Поиск целого слова
+				if (wordText.compare(searchWord, caseSensitivity) == 0) {
+					wordFound = true;
+				}
+			}
+			else {
+				// Поиск подстроки
+				if (wordText.contains(searchWord, caseSensitivity)) {
+					wordFound = true;
+				}
+			}
+
+			if (!wordFound) {
+				found = false;
+				break;
+			}
+		}
+
+		if (found) {
+			m_searchResults.append(row);
+		}
+	}
+
+	// Обновляем состояние кнопок
+	m_searchPrevBtn->setEnabled(!m_searchResults.isEmpty());
+	m_searchNextBtn->setEnabled(!m_searchResults.isEmpty());
+
+	// Если есть результаты, переходим к первому
+	if (!m_searchResults.isEmpty()) {
+		m_currentResultIndex = 0;
+		int row = m_searchResults[0];
+		scrollToRow(row);
+		highlightRow(row, true);
+	}
+
+	updateStatusLabel();
+}
+
+void AudioEntriesViewer::highlightRow(int row, bool highlight)
+{
+	if (row < 0 || row >= m_table->rowCount()) return;
+
+	QColor highlightColor = QColor(255, 255, 100);  // Желтый
+
+	for (int col = 0; col < m_table->columnCount(); ++col) {
+		QTableWidgetItem* item = m_table->item(row, col);
+		if (item) {
+			if (highlight) {
+				// Сохраняем оригинальный цвет фона, если его нет
+				if (!item->data(Qt::UserRole).isValid()) {
+					item->setData(Qt::UserRole, item->background());
+				}
+				item->setBackground(highlightColor);
+			}
+			else {
+				// Восстанавливаем оригинальный цвет
+				QVariant origBg = item->data(Qt::UserRole);
+				if (origBg.isValid()) {
+					item->setBackground(origBg.value<QColor>());
+				}
+				else {
+					// Если фона не было, устанавливаем стандартный
+					item->setBackground(QBrush());
+				}
+				// Не удаляем данные, чтобы можно было использовать повторно
+			}
+		}
+	}
+}
+
+void AudioEntriesViewer::scrollToRow(int row)
+{
+	if (row < 0 || row >= m_table->rowCount()) return;
+	m_table->scrollToItem(m_table->item(row, 0), QAbstractItemView::PositionAtCenter);
+	m_table->selectRow(row);
+}
+
+void AudioEntriesViewer::updateStatusLabel()
+{
+	QString status = QString("Audio entries: %1").arg(m_aligner->audioEntries.size());
+
+	if (!m_searchResults.isEmpty()) {
+		status += QString(" | Found: %1 match(es)").arg(m_searchResults.size());
+		if (m_currentResultIndex >= 0 && m_currentResultIndex < m_searchResults.size()) {
+			status += QString(" (current: %1/%2)").arg(m_currentResultIndex + 1).arg(m_searchResults.size());
+		}
+	}
+
+	m_statusLabel->setText(status);
 }

@@ -480,22 +480,43 @@ bool Aligner::isHighlightedRow(int row)
 	return false;
 }
 
-void Aligner::highlightCell(int row, bool highlight)
+void Aligner::highlightRow(int row, bool highlight)
 {
 	if (row >= 0 && row < audioCells.size())
 		audioCells[row].isHighlighted = highlight;
 }
 
+void Aligner::excludeRow(int row)
+{
+	if (row < 0 || row > rowCount())
+		return;
+	bool excl = !audioCells[row].isExcluded;
+	sourceCells[row].isExcluded = excl;
+	translatedCells[row].isExcluded = excl;
+	audioCells[row].isExcluded = excl;
+	modified = true;
+}
+
 void Aligner::excludeCell(int row, int column)
 {
-	if (column < 0 || column >= 2) return;
-	QVector<TextSentence>* cells = column == 1 ? &translatedCells : &sourceCells;
-
-	if (row < cells->size()) {
-		(*cells)[row].isExcluded = !(*cells)[row].isExcluded;
-		modified = true;
+	if (column == 0) {
+		if (row < sourceCells.size()) {
+			sourceCells[row].isExcluded = !sourceCells[row].isExcluded;
+			modified = true;
+		}
 	}
-	normalizeRowCount();
+	else if (column == 1) {
+		if (row < translatedCells.size()) {
+			translatedCells[row].isExcluded = !translatedCells[row].isExcluded;
+			modified = true;
+		}
+	}
+	else if (column == 2) {
+		if (row < audioCells.size()) {
+			audioCells[row].isExcluded = !audioCells[row].isExcluded;
+			modified = true;
+		}
+	}
 }
 
 void Aligner::setCellText(int row, int column, const QString& text)
@@ -886,15 +907,15 @@ bool Aligner::generateAudioSentence(int i)
 
 	if (i < 0 || i >= translatedCells.size())
 		return false;
-	const TextSentence& cell = translatedCells[i];
+	const TextSentence& tcell = translatedCells[i];
 
 	// Пропускаем исключенные или пустые ячейки
-	if (cell.isExcluded) {
+	if (tcell.isExcluded) {
 		qDebug() << "Skipping excluded cell" << i;
 		return true;
 	}
 		
-	generateMp3v2(outputFilePath, cell.text);
+	generateMp3v2(outputFilePath, tcell.text);
 
 	return true;
 }
@@ -1134,8 +1155,8 @@ bool Aligner::loadProjectTxt(const QString& filename)
 	audioCells.clear();
 
 	// Временные переменные для текущего блока
-	QString currentEn, currentRu, currentAudio;
-	bool currentEnExcl = false, currentRuExcl = false, currentAudioExcl = false;
+	QString currentSource, currentTrans, currentAudio;
+	bool currentSourceExcl = false, currentTransExcl = false, currentAudioExcl = false;
 	int currentStartMs = -1, currentEndMs = -1;
 	int currentFirstIdx = -1, currentLastIdx = -1;
 	bool currentHighlighted = false;
@@ -1148,16 +1169,16 @@ bool Aligner::loadProjectTxt(const QString& filename)
 
 		// Пропускаем пустые строки
 		if (line.trimmed().isEmpty()) {
-			if (!currentEn.isEmpty() || !currentRu.isEmpty() || !currentAudio.isEmpty()) {
+			if (!currentSource.isEmpty() || !currentTrans.isEmpty() || !currentAudio.isEmpty()) {
 				// Сохраняем текущий блок
 				TextSentence sourceCell;
-				sourceCell.text = currentEn;
-				sourceCell.isExcluded = currentEnExcl;
+				sourceCell.text = currentSource;
+				sourceCell.isExcluded = currentSourceExcl;
 				sourceCells.append(sourceCell);
 
 				TextSentence transCell;
-				transCell.text = currentRu;
-				transCell.isExcluded = currentRuExcl;
+				transCell.text = currentTrans;
+				transCell.isExcluded = currentTransExcl;
 				translatedCells.append(transCell);
 
 				AudioSentence audioCell;
@@ -1171,11 +1192,11 @@ bool Aligner::loadProjectTxt(const QString& filename)
 				audioCells.append(audioCell);
 
 				// Сбрасываем для следующего блока
-				currentEn.clear();
-				currentRu.clear();
+				currentSource.clear();
+				currentTrans.clear();
 				currentAudio.clear();
-				currentEnExcl = false;
-				currentRuExcl = false;
+				currentSourceExcl = false;
+				currentTransExcl = false;
 				currentAudioExcl = false;
 				currentStartMs = -1;
 				currentEndMs = -1;
@@ -1241,11 +1262,11 @@ bool Aligner::loadProjectTxt(const QString& filename)
 		QString key = line.left(colonPos).trimmed();
 		QString value = line.mid(colonPos + 1).trimmed();
 
-		if (key == "source") currentEn = value;
-		else if (key == "trans") currentRu = value;
+		if (key == "source") currentSource = value;
+		else if (key == "trans") currentTrans = value;
 		else if (key == "audio") currentAudio = value;
-		else if (key == "src_excl") currentEnExcl = (value == "true");
-		else if (key == "trans_excl") currentRuExcl = (value == "true");
+		else if (key == "src_excl") currentSourceExcl = (value == "true");
+		else if (key == "trans_excl") currentTransExcl = (value == "true");
 		else if (key == "audio_excl") currentAudioExcl = (value == "true");
 		else if (key == "start_ms") currentStartMs = value.toInt();
 		else if (key == "end_ms") currentEndMs = value.toInt();
@@ -1255,16 +1276,16 @@ bool Aligner::loadProjectTxt(const QString& filename)
 	}
 
 	// Сохраняем последний блок, если есть
-	if (!currentEn.isEmpty() || !currentRu.isEmpty() || !currentAudio.isEmpty()) {
-		TextSentence enCell;
-		enCell.text = currentEn;
-		enCell.isExcluded = currentEnExcl;
-		sourceCells.append(enCell);
+	if (!currentSource.isEmpty() || !currentTrans.isEmpty() || !currentAudio.isEmpty()) {
+		TextSentence sourceCell;
+		sourceCell.text = currentSource;
+		sourceCell.isExcluded = currentSourceExcl;
+		sourceCells.append(sourceCell);
 
-		TextSentence ruCell;
-		ruCell.text = currentRu;
-		ruCell.isExcluded = currentRuExcl;
-		translatedCells.append(ruCell);
+		TextSentence transCell;
+		transCell.text = currentTrans;
+		transCell.isExcluded = currentTransExcl;
+		translatedCells.append(transCell);
 
 		AudioSentence audioCell;
 		audioCell.text = currentAudio;
@@ -1326,12 +1347,6 @@ void Aligner::insertSentence(const QStringList &currentWords, int currentSentenc
 		TextSentence emptyTextCell;
 		emptyTextCell.isExcluded = true;
 		emptyTextCell.text = "";
-
-	//	sourceCells.insert(currentSentenceIdx, emptyTextCell);
-	//	translatedCells.insert(currentSentenceIdx, emptyTextCell);
-	//	AudioSentence emptyAudioCell;
-	//	emptyAudioCell.isExcluded = true;
-	//	audioCells.insert(currentSentenceIdx, emptyAudioCell);
 
 		// Вставляем в середину
 		if (currentSentenceIdx < sourceCells.size()) {
