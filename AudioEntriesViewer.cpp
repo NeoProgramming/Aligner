@@ -33,6 +33,14 @@ void AudioEntriesViewer::setupUI()
 	QHBoxLayout* searchLayout = new QHBoxLayout();
 	searchLayout->setSpacing(8);
 
+	// кнопка Set Start
+	m_setStartBtn = new QPushButton("Start", this);
+	m_setStartBtn->setFixedSize(50, 30);
+	m_setStartBtn->setToolTip("Set Start");
+	m_setStartBtn->setEnabled(true);
+	connect(m_setStartBtn, &QPushButton::clicked, this, &AudioEntriesViewer::onSetStart);
+	searchLayout->addWidget(m_setStartBtn);
+
 	// Метка "Search:"
 	QLabel* searchLabel = new QLabel("Search:", this);
 	searchLayout->addWidget(searchLabel);
@@ -47,14 +55,14 @@ void AudioEntriesViewer::setupUI()
 
 	// Кнопки навигации по результатам
 	m_searchPrevBtn = new QPushButton("Up", this);
-	m_searchPrevBtn->setFixedSize(30, 30);
+	m_searchPrevBtn->setFixedSize(50, 30);
 	m_searchPrevBtn->setToolTip("Previous match (Shift+F3)");
 	m_searchPrevBtn->setEnabled(false);
 	connect(m_searchPrevBtn, &QPushButton::clicked, this, &AudioEntriesViewer::onSearchPrevious);
 	searchLayout->addWidget(m_searchPrevBtn);
 
 	m_searchNextBtn = new QPushButton("Down", this);
-	m_searchNextBtn->setFixedSize(30, 30);
+	m_searchNextBtn->setFixedSize(50, 30);
 	m_searchNextBtn->setToolTip("Next match (F3)");
 	m_searchNextBtn->setEnabled(false);
 	connect(m_searchNextBtn, &QPushButton::clicked, this, &AudioEntriesViewer::onSearchNext);
@@ -147,6 +155,9 @@ void AudioEntriesViewer::updateEntries()
 		// Слово
 		QTableWidgetItem* wordItem = new QTableWidgetItem(entry.text);
 		wordItem->setFlags(wordItem->flags() & ~Qt::ItemIsEditable);
+		if (i == m_aligner->m_startAudioIndex) {
+			wordItem->setBackground(Qt::green);
+		}
 		m_table->setItem(i, 0, wordItem);
 
 		// Start Ms
@@ -236,15 +247,30 @@ void AudioEntriesViewer::onShowInfo()
 	msgBox.exec();
 }
 
+void AudioEntriesViewer::onSetStart()
+{
+	int row = m_table->currentRow();
+	// снимаем со старого
+	QTableWidgetItem* item = m_table->item(m_aligner->m_startAudioIndex, 0);
+	if (item) {
+		item->setBackground(QBrush());
+	}
+
+	// выставляем на новое
+	m_aligner->m_startAudioIndex = row;
+	item = m_table->item(row, 0);
+	if (item) {
+		item->setBackgroundColor(Qt::green);
+	}
+}
+
+
 // ---- Поиск ----
 
 void AudioEntriesViewer::onSearchTextChanged(const QString& text)
 {
 	if (text.isEmpty()) {
-		// Очищаем подсветку
-		for (int i = 0; i < m_table->rowCount(); ++i) {
-			highlightRow(i, false);
-		}
+		
 		m_searchResults.clear();
 		m_currentResultIndex = -1;
 		m_searchPrevBtn->setEnabled(false);
@@ -266,7 +292,7 @@ void AudioEntriesViewer::onSearchNext()
 	m_currentResultIndex = (m_currentResultIndex + 1) % m_searchResults.size();
 	int row = m_searchResults[m_currentResultIndex];
 	scrollToRow(row);
-	highlightRow(row, true);
+
 	updateStatusLabel();
 }
 
@@ -278,7 +304,7 @@ void AudioEntriesViewer::onSearchPrevious()
 	m_currentResultIndex = (m_currentResultIndex - 1 + m_searchResults.size()) % m_searchResults.size();
 	int row = m_searchResults[m_currentResultIndex];
 	scrollToRow(row);
-	highlightRow(row, true);
+
 	updateStatusLabel();
 }
 
@@ -306,11 +332,6 @@ void AudioEntriesViewer::onClearSearch()
 
 void AudioEntriesViewer::performSearch()
 {
-	// Снимаем подсветку со всех строк
-	for (int i = 0; i < m_table->rowCount(); ++i) {
-		highlightRow(i, false);
-	}
-
 	m_searchResults.clear();
 	m_currentResultIndex = -1;
 
@@ -374,42 +395,9 @@ void AudioEntriesViewer::performSearch()
 		m_currentResultIndex = 0;
 		int row = m_searchResults[0];
 		scrollToRow(row);
-		highlightRow(row, true);
 	}
 
 	updateStatusLabel();
-}
-
-void AudioEntriesViewer::highlightRow(int row, bool highlight)
-{
-	if (row < 0 || row >= m_table->rowCount()) return;
-
-	QColor highlightColor = QColor(255, 255, 100);  // Желтый
-
-	for (int col = 0; col < m_table->columnCount(); ++col) {
-		QTableWidgetItem* item = m_table->item(row, col);
-		if (item) {
-			if (highlight) {
-				// Сохраняем оригинальный цвет фона, если его нет
-				if (!item->data(Qt::UserRole).isValid()) {
-					item->setData(Qt::UserRole, item->background());
-				}
-				item->setBackground(highlightColor);
-			}
-			else {
-				// Восстанавливаем оригинальный цвет
-				QVariant origBg = item->data(Qt::UserRole);
-				if (origBg.isValid()) {
-					item->setBackground(origBg.value<QColor>());
-				}
-				else {
-					// Если фона не было, устанавливаем стандартный
-					item->setBackground(QBrush());
-				}
-				// Не удаляем данные, чтобы можно было использовать повторно
-			}
-		}
-	}
 }
 
 void AudioEntriesViewer::scrollToRow(int row)

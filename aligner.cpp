@@ -490,14 +490,13 @@ void Aligner::excludeRow(int row)
 {
 	if (row < 0 || row > rowCount())
 		return;
-	bool excl = !audioCells[row].isExcluded;
-	sourceCells[row].isExcluded = excl;
-	translatedCells[row].isExcluded = excl;
-	audioCells[row].isExcluded = excl;
+	sourceCells[row].isExcluded = 1;
+	translatedCells[row].isExcluded = 1;
+	audioCells[row].isExcluded = 1;
 	modified = true;
 }
 
-void Aligner::excludeCell(int row, int column)
+void Aligner::excludeToggleCell(int row, int column)
 {
 	if (column == 0) {
 		if (row < sourceCells.size()) {
@@ -799,7 +798,7 @@ bool Aligner::prepareFilePath(bool gen, int i, QString &outputFilePath)
 	}
 
 	// формируем выходную папку
-	QString outputDirectory = QFileInfo(currentOutputDir).absolutePath();
+	QString outputDirectory = QDir::cleanPath(currentOutputDir);
 
 	// Создаем выходную директорию, если её нет
 	QDir dir;
@@ -1483,7 +1482,7 @@ void Aligner::rebuildAudioSentences()
 void Aligner::alignAudio()
 {
 	int enIdx = 0;
-	int audioIdx = 0;
+	int audioIdx = m_startAudioIndex;
 	const double THRESHOLD = 0.8;
 	
 	while (enIdx < getSourceWordsCount()) {

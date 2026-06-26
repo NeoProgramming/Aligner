@@ -62,7 +62,7 @@ public:
 
 	QHash<QString, QString> m_dictionary;  // русское слово -> английское
 	
-
+	unsigned int m_startAudioIndex = 0;
 	bool modified;
 	double totalAudioSim = 0;
 
@@ -97,7 +97,7 @@ public:
 	void mergeCells(int row1, int row2, int column);
 	void mergeCells2(int row1, int row2, int column); // old
 	void excludeRow(int row);
-	void excludeCell(int row, int column);
+	void excludeToggleCell(int row, int column);
 	void setCellText(int row, int column, const QString& text);
 
 	// ¬ыравнивание

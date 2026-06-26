@@ -24,7 +24,7 @@ public:
 	void clear();
 private slots:
 	void onShowInfo();
-
+	void onSetStart();
 //	void onCellDoubleClicked(int row, int column);
 	void onSearchTextChanged(const QString& text);
 	void onSearchNext();
@@ -36,7 +36,6 @@ private:
 	void setupUI();
 	void setupTable();
 	void performSearch();
-	void highlightRow(int row, bool highlight);
 	void scrollToRow(int row);
 	void updateStatusLabel();
 
@@ -50,6 +49,7 @@ private:
 	QPushButton* m_clearSearchBtn;
 	QCheckBox* m_caseSensitiveCheck;
 	QCheckBox* m_wholeWordCheck;
+	QPushButton* m_setStartBtn;
 
 	// Результаты поиска
 	QVector<int> m_searchResults;  // Индексы строк, где найдено совпадение

@@ -137,7 +137,7 @@ void MainWindow::createMenuBar()
 	editMenu->addAction("Split Cell", this, &MainWindow::onSplitCell, QKeySequence(Qt::CTRL + Qt::Key_T));
 	editMenu->addAction("Merge with Previous", this, &MainWindow::onMergeWithPrevious, QKeySequence(Qt::CTRL + Qt::Key_Up));
 	editMenu->addAction("Merge with Next", this, &MainWindow::onMergeWithNext, QKeySequence(Qt::CTRL + Qt::Key_Down));
-	editMenu->addAction("Exclude Cell", this, &MainWindow::onExcludeCell);
+	editMenu->addAction("Exclude/Include Cell", this, &MainWindow::onExcludeToggleCell);
 	editMenu->addAction("Exclude Row", this, &MainWindow::onExcludeRow);
 	editMenu->addSeparator();
 	editMenu->addAction("Merge all with Previous", this, &MainWindow::onMergeAllWithPrevious);
@@ -515,7 +515,7 @@ void MainWindow::onClearHighlightRow()
 	setModified(true);
 }
 
-void MainWindow::onExcludeCell()
+void MainWindow::onExcludeToggleCell()
 {
 	int row = m_table->currentRow();
 	int col = m_table->currentColumn();
@@ -526,7 +526,7 @@ void MainWindow::onExcludeCell()
 		return;
 	}
 
-	m_aligner.excludeCell(row, col);
+	m_aligner.excludeToggleCell(row, col);
 	syncTableFromAligner();
 	setModified(true);
 }
@@ -670,12 +670,11 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	else {
 		menu.addAction("Edit", this, &MainWindow::onEditCell);
 		menu.addSeparator();
-		// Добавляем команды перемещения для перевода (безопасно)
-		if (index.column() == 1) {
-			menu.addAction("Move Up", this, &MainWindow::onMoveCellUp);
-			menu.addAction("Move Down", this, &MainWindow::onMoveCellDown);
-			menu.addSeparator();
-		}
+		
+		menu.addAction("Move Up", this, &MainWindow::onMoveCellUp);
+		menu.addAction("Move Down", this, &MainWindow::onMoveCellDown);
+		menu.addSeparator();
+		
 		menu.addAction("Split", this, &MainWindow::onSplitCell);
 		menu.addAction("Merge with previous", this, &MainWindow::onMergeWithPrevious);
 		menu.addAction("Merge with next", this, &MainWindow::onMergeWithNext);
@@ -691,7 +690,7 @@ void MainWindow::showContextMenu(const QPoint& pos)
 	menu.addAction("Merge all with next", this, &MainWindow::onMergeAllWithNext);
 	menu.addSeparator();
 
-	menu.addAction("Exclude Cell", this, &MainWindow::onExcludeCell);
+	menu.addAction("Exclude Cell", this, &MainWindow::onExcludeToggleCell);
 	menu.addAction("Exclude Row", this, &MainWindow::onExcludeRow);
 	menu.addAction("Set Highlight", this, &MainWindow::onSetHighlightRow);
 	menu.addAction("Clear Highlight", this, &MainWindow::onClearHighlightRow);

@@ -40,7 +40,7 @@ private slots:
 	void onSplitCell();
 	void onMergeWithPrevious();
 	void onMergeWithNext();
-	void onExcludeCell();
+	void onExcludeToggleCell();
 	void onExcludeRow();
 	void onSetHighlightRow();
 	void onClearHighlightRow();
@@ -54,8 +54,6 @@ private slots:
 	void onClearTranslated();
 	void onClearAudio();
 	void onNormalizeRows();
-
-
 
 	// Tools menu
 	void onTranslatedAlign();
